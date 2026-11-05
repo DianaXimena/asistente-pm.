@@ -10,6 +10,7 @@ import { QUESTIONNAIRES } from "@/lib/questionnaires";
 import { findInput, useProject } from "@/lib/store";
 import type { Project, QuestionnaireId } from "@/lib/types";
 import { RequireProject } from "./RequireProject";
+import { BlockedAction } from "./BlockedAction";
 import { btnPrimary, btnSecondary, card } from "./ui";
 
 /**
@@ -154,30 +155,19 @@ function Gate({
         <h2 className="mt-4 text-lg font-semibold text-kruger-dark">Llenar el cuestionario</h2>
         <p className="mt-2 flex-1 text-sm text-kruger-dark/70">{meta.description}</p>
         <p className="mt-3 text-xs text-kruger-dark/55">{meta.hint}</p>
-        {missing.length > 0 ? (
-          <div className="mt-6 rounded-xl bg-kruger-gray-soft p-4 text-sm text-kruger-dark">
-            <p className="flex items-center gap-2 font-semibold">
-              <Lock className="h-4 w-4 text-kruger-dark/60" /> Primero debe estar aprobado:
-            </p>
-            <ul className="mt-2 space-y-1">
-              {missing.map((m) => (
-                <li key={m.artifact_name}>
-                  {m.questionnaire ? (
-                    <Link href={QUESTIONNAIRES[m.questionnaire].href} className="text-kruger-orange hover:underline">
-                      {m.artifact_name}
-                    </Link>
-                  ) : (
-                    m.artifact_name
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <button type="button" className={`${btnPrimary} mt-6`} onClick={() => setMode("form")}>
+        {missing.length > 0 && (
+          <p className="mt-4 flex items-center gap-2 text-xs text-kruger-dark/60">
+            <Lock className="h-3.5 w-3.5" /> Requiere aprobar antes: {missing.map((m) => m.artifact_name).join(", ")}
+          </p>
+        )}
+        <BlockedAction
+          className="mt-4 w-full"
+          blockers={missing.map((m) => ({ label: `Aprobar: ${m.artifact_name}`, href: m.questionnaire ? QUESTIONNAIRES[m.questionnaire].href : "/proyecto" }))}
+        >
+          <button type="button" className={`${btnPrimary} w-full`} disabled={missing.length > 0} onClick={() => setMode("form")}>
             Comenzar cuestionario
           </button>
-        )}
+        </BlockedAction>
       </div>
 
       <SkipCard
@@ -223,6 +213,7 @@ function SkipCard({ onSkip }: { onSkip: (file: File) => Promise<string | null> }
         <span className="break-all text-sm font-medium text-kruger-dark">{file || "Seleccionar archivo"}</span>
       </button>
       <input ref={ref} type="file" className="sr-only" aria-label="Documento para omitir el cuestionario" onChange={(e) => setFileObj(e.target.files?.[0] ?? null)} />
+      <BlockedAction className="mt-4 w-full" blockers={file || busy ? [] : [{ label: "Adjuntar el documento (Seleccionar archivo)", action: () => ref.current?.click() }]}>
       <button
         type="button"
         disabled={!file || busy}
@@ -234,10 +225,11 @@ function SkipCard({ onSkip }: { onSkip: (file: File) => Promise<string | null> }
           setBusy(false);
           if (err) setError(err);
         }}
-        className={`${btnSecondary} mt-4 disabled:cursor-not-allowed disabled:opacity-50`}
+        className={`${btnSecondary} w-full disabled:cursor-not-allowed disabled:opacity-50`}
       >
         <SkipForward className="h-4 w-4" /> {busy ? "Guardando en Google Drive…" : "Omitir cuestionario"}
       </button>
+      </BlockedAction>
       <p className="mt-2 text-xs text-kruger-dark/55">El documento se guarda en Drive en la carpeta Cliente / Proyecto / Fase.</p>
       {error && (
         <p role="alert" className="mt-2 rounded-xl bg-semaforo-rojo/5 px-3 py-2 text-xs text-semaforo-rojo">

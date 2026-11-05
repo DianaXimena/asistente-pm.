@@ -16,6 +16,7 @@ import type { Closure, Contract, DeliverableAcceptance, KnowledgeRecord, Project
 import { Field, StepHeading, inputClass } from "../acta/fields";
 import { Toggle } from "../execution/LessonsRegister";
 import { DriveFilePick } from "../DriveFilePick";
+import { BlockedAction } from "../BlockedAction";
 import { phaseOfInput } from "@/lib/drive-upload";
 import { PeopleList } from "../planning/PeopleList";
 import { AddBtn, Done, RemoveBtn } from "../planning/ScopeWizard";
@@ -55,13 +56,20 @@ function Acceptance({ project }: { project: Project }) {
               </span>
             </div>
             {!r.verified && (
-              <p className="mt-3 flex items-center gap-2 text-sm text-kruger-dark/70">
-                <Lock className="h-4 w-4" /> Completa y verifica (QC) todos sus paquetes en el{" "}
-                <Link href="/ejecucion" className="text-kruger-orange hover:underline">
-                  Tablero de Ejecución
-                </Link>
-                .
-              </p>
+              <div className="mt-3 space-y-2">
+                <p className="flex items-center gap-2 text-sm text-kruger-dark/70">
+                  <Lock className="h-4 w-4" /> Requiere verificación de Control de Calidad de todos sus paquetes.
+                </p>
+                <BlockedAction
+                  blockers={trackedItems(project)
+                    .filter((i) => i.deliverableId === r.id && !(progressOf(project, i.id).status === "Completado" && progressOf(project, i.id).qc_verified_by))
+                    .map((i) => ({ label: `Completar y verificar (QC) el paquete ${i.code} ${i.name}`, href: `/ejecucion#wp-${i.id}` }))}
+                >
+                  <button type="button" className={btnSecondary} disabled>
+                    Registrar aceptación y transición
+                  </button>
+                </BlockedAction>
+              </div>
             )}
             {r.accepted && r.acceptance && (
               <p className="mt-2 text-xs text-kruger-dark/65">

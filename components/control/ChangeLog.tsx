@@ -28,6 +28,7 @@ import { DriveFilePick } from "../DriveFilePick";
 import { phaseOfInput } from "@/lib/drive-upload";
 import { PeopleList } from "../planning/PeopleList";
 import { QuestionnaireGate } from "../QuestionnaireGate";
+import { BlockedAction, type Blocker } from "../BlockedAction";
 import { btnPrimary, btnSecondary, card } from "../ui";
 import { ErrorText, Hint, WizardFrame } from "../wizard";
 
@@ -114,9 +115,16 @@ function Log({ project }: { project: Project }) {
           <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
         </Link>
         <div className="flex flex-col items-stretch gap-1 sm:items-end">
-          <button type="button" className={btnPrimary} disabled={open.length > 0 || !!project.replanning} onClick={reviewChangeLog}>
-            <CheckCircle2 className="h-4 w-4" /> Confirmar registro de cambios actualizado
-          </button>
+          <BlockedAction
+            blockers={[
+              ...open.map((cr) => ({ label: `Completar la escalera de cambios: ${cr.what || "solicitud sin título"}`, action: () => setEditing(cr) })),
+              ...(project.replanning ? [{ label: "Terminar la replanificación: actualizar y aprobar las líneas base", href: "/proyecto" }] : []),
+            ]}
+          >
+            <button type="button" className={btnPrimary} disabled={open.length > 0 || !!project.replanning} onClick={reviewChangeLog}>
+              <CheckCircle2 className="h-4 w-4" /> Confirmar registro de cambios actualizado
+            </button>
+          </BlockedAction>
           <span className="text-xs text-kruger-dark/55">
             {open.length > 0 ? "Hay solicitudes sin resolver." : project.replanning ? "Termina la replanificación primero." : "Confírmalo en cada revisión, aunque no haya cambios nuevos."}
           </span>

@@ -10,6 +10,7 @@ import type { Project, Risk } from "@/lib/types";
 import { QuestionnaireGate } from "../QuestionnaireGate";
 import { btnPrimary, btnSecondary, card } from "../ui";
 import { RiskForm } from "./RiskForm";
+import { BlockedAction, type Blocker } from "../BlockedAction";
 
 export function RiskRegister() {
   return <QuestionnaireGate id="registro-riesgos">{(p) => <Register project={p} />}</QuestionnaireGate>;
@@ -22,6 +23,12 @@ function Register({ project }: { project: Project }) {
   const complete = list.filter(isRiskComplete).length;
   const canApprove = list.length > 0 && complete === list.length;
   const reserve = contingencyFromRisks(list);
+  const blockers: Blocker[] = [
+    ...(list.length === 0 ? [{ label: "Registrar al menos un riesgo", action: () => setEditing(newRisk()) }] : []),
+    ...list
+      .filter((r) => !isRiskComplete(r))
+      .map((r) => ({ label: r.owner.trim() ? `Completar el riesgo ${r.risk_id}` : `Asignar dueño al riesgo ${r.risk_id}`, action: () => setEditing(r) })),
+  ];
 
   if (editing)
     return (
@@ -67,7 +74,7 @@ function Register({ project }: { project: Project }) {
 
       <ul className="space-y-3">
         {list.map((r) => (
-          <li key={r.risk_id} className="rounded-2xl border border-kruger-gray/25 bg-white p-5 shadow-card">
+          <li key={r.risk_id} id={`risk-${r.risk_id}`} className="rounded-2xl border border-kruger-gray/25 bg-white p-5 shadow-card">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <p className="min-w-0 flex-1 text-sm text-kruger-dark">{riskStatement(r)}</p>
               <span
@@ -107,9 +114,11 @@ function Register({ project }: { project: Project }) {
         </Link>
         {!project.risk_register_approved && (
           <div className="flex flex-col items-stretch gap-1 sm:items-end">
-            <button type="button" disabled={!canApprove} onClick={approveRiskRegister} className={btnPrimary}>
-              <CheckCircle2 className="h-4 w-4" /> Aprobar Registro de Riesgos
-            </button>
+            <BlockedAction blockers={canApprove ? [] : blockers}>
+              <button type="button" disabled={!canApprove} onClick={approveRiskRegister} className={btnPrimary}>
+                <CheckCircle2 className="h-4 w-4" /> Aprobar Registro de Riesgos
+              </button>
+            </BlockedAction>
             {!canApprove && <span className="text-xs text-kruger-dark/55">Requiere al menos un riesgo y todos con dueño asignado.</span>}
           </div>
         )}

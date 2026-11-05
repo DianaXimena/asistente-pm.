@@ -13,6 +13,7 @@ import { Field, inputClass } from "../acta/fields";
 import { Toggle } from "../execution/LessonsRegister";
 import { PeopleList } from "../planning/PeopleList";
 import { QuestionnaireGate } from "../QuestionnaireGate";
+import { BlockedAction, type Blocker } from "../BlockedAction";
 import { btnPrimary, btnSecondary, card } from "../ui";
 import { ErrorText, Hint } from "../wizard";
 
@@ -147,9 +148,11 @@ function Register({ project }: { project: Project }) {
           <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
         </Link>
         <div className="flex flex-col items-stretch gap-1 sm:items-end">
-          <button type="button" className={btnPrimary} disabled={!allAttended} onClick={reviewIncidentRegister}>
-            <CheckCircle2 className="h-4 w-4" /> Confirmar registro actualizado
-          </button>
+          <BlockedAction blockers={project.incidents.filter((i) => i.status === "Abierto").map((i) => ({ label: `Atender el incidente abierto: ${i.title}`, href: `#inc-${i.id}` }))}>
+            <button type="button" className={btnPrimary} disabled={!allAttended} onClick={reviewIncidentRegister}>
+              <CheckCircle2 className="h-4 w-4" /> Confirmar registro actualizado
+            </button>
+          </BlockedAction>
           <span className="text-xs text-kruger-dark/55">
             {allAttended ? "Confírmalo en cada revisión, aunque no haya incidentes nuevos." : "Todos los incidentes deben estar en resolución o resueltos."}
           </span>
@@ -227,7 +230,7 @@ function IncidentCard({ incident: i, onRaiseChange }: { incident: Incident; onRa
   const { saveIncident } = useProject();
   const [resolution, setResolution] = useState("");
   return (
-    <li className="rounded-2xl border border-kruger-gray/25 bg-white p-5 shadow-card">
+    <li id={`inc-${i.id}`} className="rounded-2xl border border-kruger-gray/25 bg-white p-5 shadow-card">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-kruger-dark">{i.title}</p>

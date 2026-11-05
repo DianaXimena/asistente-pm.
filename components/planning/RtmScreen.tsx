@@ -10,6 +10,7 @@ import { useProject } from "@/lib/store";
 import type { Priority, Project, Requirement } from "@/lib/types";
 import { Field, inputClass } from "../acta/fields";
 import { PeopleList } from "./PeopleList";
+import { BlockedAction, type Blocker } from "../BlockedAction";
 import { QuestionnaireGate } from "../QuestionnaireGate";
 import { btnPrimary, btnSecondary, card } from "../ui";
 import { ErrorText, Hint } from "../wizard";
@@ -71,6 +72,16 @@ function Rtm({ project }: { project: Project }) {
   const allDefined = project.requirements.every(isRequirementDefined);
   const canApprove = cov.complete && allDefined;
   const objectives = project.acta?.business_case ? [project.acta.business_case] : [];
+
+  // Pasos pendientes que bloquean la aprobación (cada uno lleva a donde se resuelve).
+  const blockers: Blocker[] = [];
+  if (items.length === 0) blockers.push({ label: "Aprobar la Línea Base del Alcance (EDT con paquetes de trabajo)", href: "/cuestionario/linea-base-alcance" });
+  if (project.requirements.length === 0) blockers.push({ label: "Registrar al menos un requisito", action: () => setDraft(newRequirement(project.requirements)) });
+  project.requirements.filter((r) => !isRequirementDefined(r)).forEach((r) => blockers.push({ label: `Completar los datos de ${r.id}`, action: () => setDraft(r) }));
+  if (items.length > 0) {
+    cov.uncovered.forEach((r) => blockers.push({ label: `Vincular ${r.id} a un paquete de trabajo`, href: `#req-${r.id}` }));
+    cov.untraced.forEach((w) => blockers.push({ label: `Asignar un requisito al paquete ${w.code} ${w.name}`, href: `#wp-${w.id}` }));
+  }
 
   const toggleLink = (r: Requirement, wpId: string) =>
     saveRequirement({
@@ -172,7 +183,7 @@ function Rtm({ project }: { project: Project }) {
           {project.requirements.map((r) => {
             const uncovered = cov.uncovered.some((x) => x.id === r.id);
             return (
-              <li key={r.id} className={clsx("rounded-xl p-4", uncovered && items.length ? "bg-semaforo-rojo/5" : "bg-kruger-gray-soft")}>
+              <li key={r.id} id={`req-${r.id}`} className={clsx("rounded-xl p-4", uncovered && items.length ? "bg-semaforo-rojo/5" : "bg-kruger-gray-soft")}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <p className="min-w-0 flex-1 text-sm text-kruger-dark">
                     <span className="font-semibold text-kruger-orange">{r.id}</span> {r.description}
@@ -234,7 +245,7 @@ function Rtm({ project }: { project: Project }) {
                 {items.map((it) => {
                   const reqs = project.requirements.filter((r) => r.work_package_ids.includes(it.id));
                   return (
-                    <tr key={it.id} className={reqs.length ? "" : "bg-semaforo-rojo/5"}>
+                    <tr key={it.id} id={`wp-${it.id}`} className={reqs.length ? "" : "bg-semaforo-rojo/5"}>
                       <td className="py-2 pr-3 text-kruger-dark">
                         <span className="text-kruger-orange">{it.code}</span> {it.name}
                       </td>
@@ -268,9 +279,11 @@ function Rtm({ project }: { project: Project }) {
           <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
         </Link>
         {!project.rtm_approved && (
-          <button type="button" className={btnPrimary} disabled={!canApprove} onClick={approveRtm}>
-            <CheckCircle2 className="h-4 w-4" /> Aprobar Matriz de Trazabilidad
-          </button>
+          <BlockedAction blockers={canApprove ? [] : blockers}>
+            <button type="button" className={btnPrimary} disabled={!canApprove} onClick={approveRtm}>
+              <CheckCircle2 className="h-4 w-4" /> Aprobar Matriz de Trazabilidad
+            </button>
+          </BlockedAction>
         )}
       </div>
     </div>

@@ -10,6 +10,7 @@ import type { Project, Stakeholder } from "@/lib/types";
 import { QuestionnaireGate } from "../QuestionnaireGate";
 import { btnPrimary, btnSecondary, card } from "../ui";
 import { StakeholderForm } from "./StakeholderForm";
+import { BlockedAction, type Blocker } from "../BlockedAction";
 
 export function StakeholderRegister() {
   return <QuestionnaireGate id="registro-interesados">{(p) => <Register project={p} />}</QuestionnaireGate>;
@@ -21,6 +22,10 @@ function Register({ project }: { project: Project }) {
   const list = project.stakeholders;
   const complete = list.filter(isStakeholderComplete).length;
   const canApprove = list.length > 0 && complete === list.length;
+  const blockers: Blocker[] = [
+    ...(list.length === 0 ? [{ label: "Registrar al menos un interesado", action: () => setEditing(newStakeholder()) }] : []),
+    ...list.filter((s) => !isStakeholderComplete(s)).map((s) => ({ label: `Completar los 3 niveles de ${s.name || "un interesado"}`, action: () => setEditing(s) })),
+  ];
 
   // Sugerencias tomadas del Acta (Patrocinador y PM) si aún no están registrados.
   const names = new Set(list.map((s) => s.name.trim().toLowerCase()));
@@ -139,9 +144,11 @@ function Register({ project }: { project: Project }) {
         </Link>
         {!project.stakeholder_register_approved && (
           <div className="flex flex-col items-stretch gap-1 sm:items-end">
-            <button type="button" disabled={!canApprove} onClick={approveStakeholderRegister} className={btnPrimary}>
-              <CheckCircle2 className="h-4 w-4" /> Aprobar Registro de Interesados
-            </button>
+            <BlockedAction blockers={canApprove ? [] : blockers}>
+              <button type="button" disabled={!canApprove} onClick={approveStakeholderRegister} className={btnPrimary}>
+                <CheckCircle2 className="h-4 w-4" /> Aprobar Registro de Interesados
+              </button>
+            </BlockedAction>
             {!canApprove && <span className="text-xs text-kruger-dark/55">Requiere al menos un interesado y todos completos.</span>}
           </div>
         )}

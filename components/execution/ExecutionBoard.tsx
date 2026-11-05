@@ -27,6 +27,7 @@ import { PeopleList } from "../planning/PeopleList";
 import { RequireProject } from "../RequireProject";
 import { btnPrimary, btnSecondary, card } from "../ui";
 import { ErrorText } from "../wizard";
+import { BlockedAction, type Blocker } from "../BlockedAction";
 
 export function ExecutionBoard() {
   return <RequireProject>{(p) => <Board project={p} />}</RequireProject>;
@@ -87,6 +88,10 @@ function WorkPackages({ project }: { project: Project }) {
   const items = trackedItems(project);
   const missing = requiredReportPeriod(project);
   const blocked = !!missing || !!project.replanning;
+  const blockers: Blocker[] = [
+    ...(missing ? [{ label: `Generar el Informe de Desempeño de ${missing} (EV, PV y AC)`, href: "/cuestionario/informe-desempeno" }] : []),
+    ...(project.replanning ? [{ label: "Terminar la replanificación: actualizar y aprobar las líneas base", href: "/proyecto" }] : []),
+  ];
   const [qc, setQc] = useState<{ id: string; by: string; date: string } | null>(null);
   const qcError = (d: string) =>
     approvalDateError(d, project.execution_started_at ? { date: project.execution_started_at, label: "el inicio de la Ejecución" } : undefined);
@@ -117,7 +122,7 @@ function WorkPackages({ project }: { project: Project }) {
         {items.map((it) => {
           const pr = progressOf(project, it.id);
           return (
-            <li key={it.id} className="py-3">
+            <li key={it.id} id={`wp-${it.id}`} className="rounded-lg py-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-kruger-dark">
@@ -128,6 +133,7 @@ function WorkPackages({ project }: { project: Project }) {
                     {pr.status === "Completado" && pr.qc_verified_by && ` · Verificado (QC) por ${pr.qc_verified_by} el ${formatDate(pr.qc_date)}`}
                   </p>
                 </div>
+                <BlockedAction blockers={blockers}>
                 <div className="flex shrink-0 gap-1" role="group" aria-label={`Estado de ${it.name}`}>
                   {STATUSES.map((st) => (
                     <button
@@ -155,6 +161,7 @@ function WorkPackages({ project }: { project: Project }) {
                     </button>
                   ))}
                 </div>
+                </BlockedAction>
               </div>
               {qc?.id === it.id && (
                 <div className="mt-3 rounded-xl bg-kruger-gray-soft p-4">
@@ -235,7 +242,7 @@ function Impediments({ project }: { project: Project }) {
         )}
       </div>
 
-      <details className="mt-4 rounded-xl bg-kruger-gray-soft p-4">
+      <details id="umbral" className="mt-4 rounded-xl bg-kruger-gray-soft p-4">
         <summary className="cursor-pointer text-sm font-medium text-kruger-dark">Umbral de escalamiento del proyecto</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <Field label="Impacto mayor a (USD)" htmlFor="thr-amount">
@@ -361,7 +368,7 @@ function ImpedimentCard({ project, imp }: { project: Project; imp: Impediment })
             <strong>Nivel {lvl.level}:</strong> {lvl.question} <span className="text-kruger-dark/65">→ {lvl.action}</span>
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
-            <input aria-label="Acción realizada" className={inputClass} placeholder="Acción realizada en este nivel" value={attempt.action} onChange={(e) => setAttempt({ ...attempt, action: e.target.value })} />
+            <input id={`imp-action-${imp.id}`} aria-label="Acción realizada" className={inputClass} placeholder="Acción realizada en este nivel" value={attempt.action} onChange={(e) => setAttempt({ ...attempt, action: e.target.value })} />
             <input aria-label="Resultado" className={inputClass} placeholder="Resultado" value={attempt.result} onChange={(e) => setAttempt({ ...attempt, result: e.target.value })} />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -382,15 +389,29 @@ function ImpedimentCard({ project, imp }: { project: Project; imp: Impediment })
               </button>
             )}
             {imp.level < 4 && (imp.level === 3 || esc.allowed) && (
-              <button
-                type="button"
-                className={btnPrimary}
-                disabled={!esc.allowed}
-                title={esc.reason}
-                onClick={() => saveImpediment({ ...imp, level: 4 })}
+              <BlockedAction
+                blockers={
+                  esc.allowed
+                    ? []
+                    : [
+                        { label: "Registrar un intento de solución en los niveles 1 a 3", href: `#imp-action-${imp.id}` },
+                        {
+                          label: "O configurar el umbral de escalamiento (y registrar el impacto del impedimento)",
+                          action: () => {
+                            const d = document.getElementById("umbral") as HTMLDetailsElement | null;
+                            if (d) {
+                              d.open = true;
+                              d.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }
+                          },
+                        },
+                      ]
+                }
               >
-                <ShieldAlert className="h-4 w-4" /> Escalar a Gobernanza / Patrocinador
-              </button>
+                <button type="button" className={btnPrimary} disabled={!esc.allowed} onClick={() => saveImpediment({ ...imp, level: 4 })}>
+                  <ShieldAlert className="h-4 w-4" /> Escalar a Gobernanza / Patrocinador
+                </button>
+              </BlockedAction>
             )}
             <button type="button" className={btnSecondary} onClick={() => saveImpediment({ ...imp, reviews: imp.reviews + 1 })}>
               <RefreshCw className="h-4 w-4" /> Revisión: sigue abierto
