@@ -5,19 +5,23 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { ArrowLeft, ArrowRight, FileCheck2, Plus, Trash2 } from "lucide-react";
 import { AUTHORITY_OPTIONS, EMPTY_ACTA, isStepValid, isValidEmail } from "@/lib/acta";
-import { useProject } from "@/lib/store";
+import { ACTA_DRAFT_KEY, useProject } from "@/lib/store";
 import type { ActaFormData, PmAuthority } from "@/lib/types";
+import { RequireProject } from "../RequireProject";
 import { ActaSummary } from "./ActaSummary";
 import { Field, StepDots, StepHeading, inputClass } from "./fields";
 
 const TOTAL = 4;
-const DRAFT_KEY = "asistente-pm:acta-draft:v1";
 
 /**
  * Flujo del cuestionario del Acta de Constitución (documento "Gestión de Proyectos 2"):
  * una sola pregunta por pantalla → Generar → Resumen y enlace a Drive.
  */
 export function ActaWizard() {
+  return <RequireProject>{() => <Wizard />}</RequireProject>;
+}
+
+function Wizard() {
   const router = useRouter();
   const { project, hydrated, submitActa } = useProject();
   const [step, setStep] = useState(1);
@@ -29,19 +33,19 @@ export function ActaWizard() {
   useEffect(() => {
     if (!hydrated || loaded) return;
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      const raw = localStorage.getItem(ACTA_DRAFT_KEY);
       if (raw) setData({ ...EMPTY_ACTA, ...(JSON.parse(raw) as ActaFormData) });
-      else if (project.acta) setData(project.acta);
+      else if (project?.acta) setData(project.acta);
     } catch {
-      if (project.acta) setData(project.acta);
+      if (project?.acta) setData(project.acta);
     }
     setLoaded(true);
-  }, [hydrated, loaded, project.acta]);
+  }, [hydrated, loaded, project?.acta]);
 
   useEffect(() => {
     if (!loaded) return;
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+      localStorage.setItem(ACTA_DRAFT_KEY, JSON.stringify(data));
     } catch {
       /* ignorar */
     }
@@ -61,7 +65,7 @@ export function ActaWizard() {
     if (step === TOTAL) {
       submitActa(data);
       try {
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(ACTA_DRAFT_KEY);
       } catch {
         /* ignorar */
       }
@@ -182,20 +186,14 @@ export function ActaWizard() {
               title="¿Cuáles son los límites iniciales de tiempo y costo?"
             />
             <Field
-              label="Presupuesto inicial asignado"
+              label="Presupuesto inicial asignado (dólares)"
               htmlFor="budget"
               error={touched && !(Number(data.budget) > 0) ? "Ingresa un monto mayor a 0." : undefined}
             >
-              <div className="flex gap-2">
-                <select
-                  aria-label="Moneda"
-                  className={clsx(inputClass, "w-28 shrink-0")}
-                  value={data.currency}
-                  onChange={(e) => update("currency", e.target.value)}
-                >
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                </select>
+              <div className="flex">
+                <span className="flex items-center rounded-l-xl border border-r-0 border-kruger-gray/40 bg-kruger-gray-soft px-4 text-sm font-medium text-kruger-dark/70">
+                  USD
+                </span>
                 <input
                   id="budget"
                   type="number"
@@ -203,7 +201,7 @@ export function ActaWizard() {
                   min={0}
                   step="0.01"
                   autoFocus
-                  className={inputClass}
+                  className={clsx(inputClass, "rounded-l-none")}
                   placeholder="0.00"
                   value={data.budget}
                   onChange={(e) => update("budget", e.target.value)}

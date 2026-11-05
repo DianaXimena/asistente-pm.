@@ -1,27 +1,16 @@
-import type { Project } from "./types";
+import type { Phase, Project } from "./types";
 
-// Datos de demostración. Se reemplazarán por la persistencia real del proyecto.
-// Nombre, ID y enfoque tomados del ejemplo JSON del documento de diseño.
-export const mockProject: Project = {
-  project_id: "PRJ-2026-001",
-  project_name: "Modernización Core Bancario",
-  approach: {
-    type: "Hibrido",
-    rationale: "Gobernanza contractual predictiva con desarrollo adaptativo por sprints",
-    detected_from: "Contrato Marco con Sprints",
-  },
-  current_phase: "inicio",
-  // Valor de demostración: 1/3 del registro de interesados → 30% × 1/3 = 10% de Inicio.
-  stakeholders_identified_ratio: 1 / 3,
-  phases: [
+/** Plantilla de fases e insumos mínimos obligatorios (Motor de Fases). */
+export function initialPhases(): Phase[] {
+  return [
     {
       id: "inicio",
       phase_name: "Inicio",
       status: "En Progreso",
-      progress_percentage: 10,
+      progress_percentage: 0,
       mandatory_inputs: [
         { artifact_name: "Acta de Constitución", status: "No Iniciado", questionnaire: "acta-constitucion" },
-        { artifact_name: "Registro de Interesados Inicial", status: "En Progreso" },
+        { artifact_name: "Registro de Interesados Inicial", status: "No Iniciado", questionnaire: "registro-interesados" },
       ],
     },
     {
@@ -69,5 +58,20 @@ export const mockProject: Project = {
         { artifact_name: "Archivo de Lecciones Aprendidas", status: "No Iniciado" },
       ],
     },
-  ],
-};
+  ];
+}
+
+export function createProject(clientName: string, projectName: string): Project {
+  const now = new Date();
+  return {
+    project_id: `PRJ-${now.getFullYear()}-${now.getTime().toString(36).slice(-5).toUpperCase()}`,
+    client_name: clientName.trim(),
+    project_name: projectName.trim(),
+    created_at: now.toISOString(),
+    approach: null,
+    current_phase: "inicio",
+    phases: initialPhases(),
+    stakeholders: [],
+    stakeholder_register_approved: false,
+  };
+}

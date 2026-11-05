@@ -7,7 +7,7 @@ import type { QuestionnaireId } from "@/lib/types";
 export function generateStaticParams() {
   // El Acta tiene su propia ruta con el flujo completo.
   return Object.keys(QUESTIONNAIRES)
-    .filter((id) => id !== "acta-constitucion")
+    .filter((id) => id !== "acta-constitucion" && id !== "registro-interesados")
     .map((id) => ({ id }));
 }
 
@@ -23,7 +23,7 @@ export default async function QuestionnairePage({ params }: { params: Promise<{ 
         <ArrowLeft className="h-4 w-4" /> Volver al Dashboard
       </Link>
       <div className="mt-6 rounded-2xl border border-kruger-gray/25 bg-white p-8 shadow-card">
-        <p className="text-xs font-medium uppercase tracking-wide text-kruger-dark/55">Cuestionario · {q.questions} preguntas</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-kruger-dark/55">Cuestionario · {q.hint}</p>
         <h1 className="mt-2 text-2xl font-semibold text-kruger-dark">{q.title} ({q.label})</h1>
         <p className="mt-4 text-sm text-kruger-dark/70">
           El flujo guiado (una pregunta por pantalla) está en construcción.

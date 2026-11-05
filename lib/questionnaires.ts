@@ -5,27 +5,38 @@ export interface QuestionnaireMeta {
   title: string;
   /** Nombre usado en el mensaje del asistente ("...el cuestionario del {label}"). */
   label: string;
-  questions: number;
+  href: string;
+  hint: string;
 }
 
-// Metadatos de los cuestionarios descritos en la sección 3 del documento de diseño.
+// Cuestionarios descritos en los documentos de diseño.
 export const QUESTIONNAIRES: Record<QuestionnaireId, QuestionnaireMeta> = {
   "acta-constitucion": {
     id: "acta-constitucion",
     title: "Acta de Constitución",
     label: "Project Charter",
-    questions: 4,
+    href: "/cuestionario/acta-constitucion",
+    hint: "4 preguntas · una por pantalla · ~3 min",
+  },
+  "registro-interesados": {
+    id: "registro-interesados",
+    title: "Registro de Interesados Inicial",
+    label: "Registro de Interesados",
+    href: "/cuestionario/registro-interesados",
+    hint: "3 niveles por interesado: identificación, poder/interés e involucramiento",
   },
   "registro-riesgos": {
     id: "registro-riesgos",
     title: "Registro de Riesgos Inicial",
     label: "Registro de Riesgos",
-    questions: 4,
+    href: "/cuestionario/registro-riesgos",
+    hint: "4 preguntas obligatorias",
   },
   "solicitud-cambio": {
     id: "solicitud-cambio",
     title: "Solicitud de Cambio",
     label: "Change Request",
-    questions: 5,
+    href: "/cuestionario/solicitud-cambio",
+    hint: "5 preguntas",
   },
 };

@@ -43,7 +43,7 @@ export function ActaSummary({ data, onEdit }: { data: ActaFormData; onEdit: () =
               "—"
             )}
           </Item>
-          <Item title="Presupuesto inicial">{formatMoney(data.budget, data.currency)}</Item>
+          <Item title="Presupuesto inicial">{formatMoney(data.budget)}</Item>
           <Item title="Fecha límite">{formatDate(data.deadline)}</Item>
           {data.milestones.length > 0 && (
             <Item title="Hitos principales" wide>

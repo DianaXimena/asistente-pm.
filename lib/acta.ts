@@ -1,3 +1,4 @@
+import { stakeholdersRatio } from "./stakeholders";
 import type { ActaFormData, Project } from "./types";
 
 export const EMPTY_ACTA: ActaFormData = {
@@ -5,7 +6,6 @@ export const EMPTY_ACTA: ActaFormData = {
   pm_name: "",
   pm_authority: "",
   budget: "",
-  currency: "USD",
   deadline: "",
   milestones: [],
   sponsor_name: "",
@@ -66,18 +66,15 @@ export function actaCompletionRatio(d: ActaFormData | undefined): number {
  */
 export function calcInicioProgress(project: Project): number {
   const acta = actaCompletionRatio(project.acta) * 70;
-  const stakeholders = Math.max(0, Math.min(1, project.stakeholders_identified_ratio)) * 30;
+  const stakeholders = stakeholdersRatio(project.stakeholders) * 30;
   return Math.round(acta + stakeholders);
 }
 
-export function formatMoney(amount: string, currency: string): string {
+/** Todos los montos del asistente se expresan en dólares (USD). */
+export function formatMoney(amount: string): string {
   const n = Number(amount);
   if (!Number.isFinite(n)) return amount;
-  try {
-    return new Intl.NumberFormat("es-EC", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
-  } catch {
-    return `${currency} ${n.toLocaleString("es-EC")}`;
-  }
+  return `USD ${new Intl.NumberFormat("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`;
 }
 
 export function formatDate(iso: string): string {

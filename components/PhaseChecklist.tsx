@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { inputSemaforo } from "@/lib/assistant";
+import { QUESTIONNAIRES } from "@/lib/questionnaires";
 import type { Phase } from "@/lib/types";
 import { SemaforoDot, SemaforoLegend } from "./Semaforo";
 
@@ -36,7 +37,7 @@ export function PhaseChecklist({ phase, isCurrent }: { phase: Phase; isCurrent: 
             <li key={input.artifact_name}>
               {isCurrent && input.questionnaire && input.status !== "Aprobado" ? (
                 <Link
-                  href={`/cuestionario/${input.questionnaire}`}
+                  href={QUESTIONNAIRES[input.questionnaire].href}
                   className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition hover:bg-kruger-orange-soft"
                 >
                   {content}
