@@ -10,6 +10,27 @@ npm install
 npm run dev
 ```
 
+## Acceso con usuarios
+
+Toda la app (páginas y API) exige iniciar sesión. Los usuarios viven en Neon (Postgres):
+
+- Claves guardadas solo como hash (bcrypt), bloqueo de 15 minutos tras 5 intentos fallidos.
+- Cambio de clave obligatorio en el primer ingreso; política: 10+ caracteres con letras, números y un símbolo.
+- Sesión firmada en cookie `httpOnly` (8 h), invalidada al desactivar al usuario o restablecer su clave.
+- `/usuarios` (solo administradores): crear usuarios con clave temporal, activar/desactivar, cambiar rol y restablecer clave.
+- Bitácora de accesos `auth_audit` de solo inserción (un trigger impide editar o borrar).
+
+Variables de entorno en Vercel:
+
+| Variable | Uso |
+|---|---|
+| `DATABASE_URL` | La agrega Vercel al conectar la base Neon |
+| `AUTH_SECRET` | Texto aleatorio de 32+ caracteres para firmar sesiones |
+| `INITIAL_USERS` | Correos de los administradores iniciales, separados por coma |
+| `INITIAL_PASSWORD` | Clave temporal inicial (deben cambiarla al primer ingreso) |
+
+Las tablas se crean solas en el primer acceso; los usuarios iniciales solo se crean si la tabla está vacía.
+
 ## Portafolio
 
 - **`/` Portafolio**: botón "Nuevo Proyecto" (captura de cliente y proyecto), total de proyectos en curso y una

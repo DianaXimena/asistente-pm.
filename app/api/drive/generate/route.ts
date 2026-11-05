@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/server/auth";
 import { PHASE_SHORT, folderTypeFor, getTemplate } from "@/lib/templates";
 import type { ApproachType } from "@/lib/types";
 
@@ -10,6 +11,8 @@ const clean = (v: unknown, max = 120) => (typeof v === "string" ? v.replace(/[\u
  * La estructura del documento sale del catálogo del servidor, nunca del navegador.
  */
 export async function POST(req: Request) {
+  const auth = await requireUser();
+  if ("error" in auth) return auth.error;
   const url = process.env.GOOGLE_APPS_SCRIPT_URL;
   const token = process.env.GOOGLE_APPS_SCRIPT_TOKEN;
   if (!url || !token) return NextResponse.json({ error: "not_configured" }, { status: 503 });

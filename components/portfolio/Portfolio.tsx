@@ -13,6 +13,7 @@ import type { Project } from "@/lib/types";
 import { Field, inputClass } from "../acta/fields";
 import { ProgressBar } from "../ProgressBar";
 import { Tooltip } from "../Tooltip";
+import { UserMenu } from "../auth/UserMenu";
 import { btnPrimary, btnSecondary } from "../ui";
 
 /** Colores de serie validados (CVD y visión normal) sobre la superficie clara. */
@@ -54,6 +55,7 @@ export function Portfolio() {
           >
             {open ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />} Nuevo Proyecto
           </button>
+          <UserMenu />
           </div>
         </div>
       </header>
