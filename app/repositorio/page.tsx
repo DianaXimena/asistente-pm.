@@ -16,8 +16,8 @@ export default function RepositorioPage() {
         <h1 className="mt-1 text-2xl font-semibold text-kruger-dark sm:text-3xl">Repositorio de Plantillas Estándar (CMMI / PMP)</h1>
         <p className="mt-2 text-sm leading-relaxed text-kruger-dark/70">
           Plantillas que acompañan cada grupo de procesos del ciclo de vida: autorizan el proyecto, integran las líneas base, registran acuerdos y cambios, y
-          formalizan el cierre. Cada documento se genera en Google Drive con el encabezado del proyecto, control de versiones, instrucciones de llenado y bloque de
-          aprobaciones, organizado por tipo de proyecto.
+          formalizan el cierre. Cada plantilla está disponible en la carpeta madre de Google Drive, con encabezado, control de versiones, instrucciones de llenado
+          y bloque de aprobaciones. Ábrela al instante o haz una copia para tu proyecto.
         </p>
       </div>
       <Repository />

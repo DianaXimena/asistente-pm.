@@ -1,7 +1,9 @@
 /**
  * Asistente PM · Repositorio de Plantillas CMMI / PMP
- * Web App de Google Apps Script que genera documentos de Google Docs con formato
- * corporativo dentro de la carpeta madre, organizados por subcarpeta de Tipo de Proyecto.
+ * Web App de Google Apps Script para la CARGA INICIAL (una sola vez) de las plantillas
+ * estándar: crea cada documento de Google Docs con formato corporativo directamente
+ * en la carpeta madre y devuelve su URL para registrarla en la base de datos de la app.
+ * Si el documento ya existe en la carpeta madre, devuelve el existente (no duplica).
  *
  * Seguridad: solo atiende peticiones que incluyan el token guardado en las
  * Propiedades del script (API_TOKEN). La carpeta madre se fija aquí o en la
@@ -9,7 +11,6 @@
  */
 
 var DEFAULT_ROOT_FOLDER_ID = '1ZoHiDJTooOMsiOYM_2smklcSgAYyprhh';
-var ALLOWED_TYPES = ['Predictivo', 'Ágil', 'Híbrido', 'General'];
 
 var STYLE = {
   font: 'Roboto',
@@ -38,8 +39,8 @@ function doPost(e) {
     // Evita carpetas o documentos duplicados si llegan dos peticiones a la vez.
     lock.waitLock(20000);
 
-    var root = DriveApp.getFolderById(props.getProperty('ROOT_FOLDER_ID') || DEFAULT_ROOT_FOLDER_ID);
-    var folder = getOrCreateFolder_(root, req.folderType);
+    // Los documentos se guardan directamente en la carpeta madre.
+    var folder = DriveApp.getFolderById(props.getProperty('ROOT_FOLDER_ID') || DEFAULT_ROOT_FOLDER_ID);
 
     var existing = findFile_(folder, req.docName);
     if (existing) {
@@ -75,12 +76,12 @@ function testGenerate() {
     postData: {
       contents: JSON.stringify({
         token: token,
-        folderType: 'General',
+        action: 'seedTemplate',
         docName: 'Prueba — Acta de Reunión',
         title: 'Acta de Reunión',
-        client: 'Cliente de prueba',
-        project: 'Proyecto de prueba',
-        date: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy'),
+        client: '[Nombre del cliente]',
+        project: '[Nombre del proyecto]',
+        date: '[dd/mm/aaaa]',
         typesLabel: 'General',
         phasesLabel: 'Ejecución · Monitoreo y Control',
         purpose: 'Documentar acuerdos.',
@@ -98,7 +99,7 @@ function json_(obj) {
 }
 
 function validate_(req) {
-  if (ALLOWED_TYPES.indexOf(req.folderType) < 0) return 'Tipo de proyecto no permitido';
+  if (req.action !== 'seedTemplate') return 'Acción no permitida';
   var fields = ['docName', 'title', 'client', 'project', 'date'];
   for (var i = 0; i < fields.length; i++) {
     var v = req[fields[i]];
@@ -106,15 +107,6 @@ function validate_(req) {
   }
   if (!req.sections || !req.sections.length) return 'La plantilla no tiene secciones';
   return null;
-}
-
-function getOrCreateFolder_(root, name) {
-  var it = root.getFoldersByName(name);
-  while (it.hasNext()) {
-    var f = it.next();
-    if (!f.isTrashed()) return f;
-  }
-  return root.createFolder(name);
 }
 
 function findFile_(folder, name) {

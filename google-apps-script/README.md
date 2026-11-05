@@ -1,13 +1,19 @@
 # Integración con Google Drive (Apps Script)
 
-El botón **"Generar en Google Docs"** del Repositorio de Plantillas llama a la app (`/api/drive/generate`),
-que reenvía la petición a este script de Google Apps Script. El script:
+El script se usa **una sola vez**, en la **carga inicial** del Repositorio de Plantillas. Un administrador
+abre **Plantillas CMMI / PMP** en la app y hace clic en **Inicializar repositorio**; la app llama a
+`/api/templates/seed` por cada plantilla y este script:
 
-1. Busca (o crea) la subcarpeta del tipo de proyecto (`Predictivo`, `Ágil`, `Híbrido`, `General`) dentro de la
-   carpeta madre `1ZoHiDJTooOMsiOYM_2smklcSgAYyprhh`.
-2. Si el documento ya existe en esa subcarpeta, devuelve su enlace (no duplica).
-3. Si no existe, crea el Google Doc con encabezado (cliente, proyecto y fecha), confidencialidad, control de
+1. Crea el Google Doc **directamente en la carpeta madre** `1ZoHiDJTooOMsiOYM_2smklcSgAYyprhh`, con encabezado
+   para completar (`[Nombre del cliente]`, `[Nombre del proyecto]`, `[dd/mm/aaaa]`), confidencialidad, control de
    versiones con "¿Es Línea Base? (Sí/No)", instrucciones de llenado en cada sección, tablas y aprobaciones.
+2. Si el documento ya existe en la carpeta madre, devuelve su enlace (no duplica).
+
+La app guarda cada enlace en la base de datos (`template_documents`). Desde ahí, la pantalla solo **abre** los
+documentos: ya no genera nada. Para usar una plantilla en un proyecto, cada usuario hace "Hacer una copia".
+
+**Acceso de los usuarios:** los documentos heredan los permisos de la carpeta madre. Compártela (al menos como
+Lector) con los usuarios de la app, o configúrala como "Cualquier persona con el enlace: Lector".
 
 Los documentos quedan a nombre de la cuenta que publica el script; esa cuenta necesita acceso de edición a la carpeta madre.
 
@@ -32,8 +38,7 @@ Los documentos quedan a nombre de la cuenta que publica el script; esa cuenta ne
 
 1. En el editor, elige la función `testGenerate` y haz clic en **Ejecutar**.
 2. Google pedirá permisos: **Revisar permisos** → elige tu cuenta → **Permitir**.
-3. Revisa en la carpeta madre que se creó la subcarpeta `General` con el documento "Prueba — Acta de Reunión".
-   Puedes borrarlo después.
+3. Revisa en la carpeta madre que se creó el documento "Prueba — Acta de Reunión". Bórralo después.
 
 ## Paso 4 · Publicar como aplicación web
 
@@ -51,7 +56,8 @@ Los documentos quedan a nombre de la cuenta que publica el script; esa cuenta ne
    - `GOOGLE_APPS_SCRIPT_URL` = la URL del paso 4
    - `GOOGLE_APPS_SCRIPT_TOKEN` = la misma clave del paso 2
 3. Ve a **Deployments**, abre el último y elige **Redeploy** para que tome las variables.
-4. Abre la app → **Plantillas CMMI / PMP**: el aviso de "no configurada" desaparece y los botones se activan.
+4. Ingresa a la app como administrador → **Plantillas CMMI / PMP** → **Inicializar repositorio**.
+   Al terminar, las 13 plantillas muestran "Abrir en Google Docs" para todos los usuarios.
 
 ## Si cambias el script
 
@@ -62,7 +68,10 @@ La URL no cambia.
 
 | Mensaje en la app | Causa | Solución |
 |---|---|---|
-| La integración con Google Drive no está configurada | Faltan las variables en Vercel | Paso 5 y **Redeploy** |
-| El token del servidor no coincide | `API_TOKEN` distinto en Apps Script y Vercel | Usa exactamente la misma clave |
-| No se pudo contactar a Google Apps Script | URL incorrecta o implementación con acceso restringido | Revisa el paso 4 |
-| No se pudo generar el documento (…) | Permisos sobre la carpeta madre | La cuenta que publica debe poder editar la carpeta |
+| Falta configurar GOOGLE_APPS_SCRIPT_URL… | Faltan las variables en Vercel | Paso 5 y **Redeploy** |
+| unauthorized | `API_TOKEN` distinto en Apps Script y Vercel | Usa exactamente la misma clave |
+| drive_unreachable | URL incorrecta o implementación restringida | Revisa el paso 4 |
+| Un usuario no puede abrir un documento | La carpeta madre no está compartida con él | Comparte la carpeta madre |
+
+Si la carga inicial falla en alguna plantilla, vuelve a hacer clic en **Inicializar repositorio**: solo se crean
+las que faltan.

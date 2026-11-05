@@ -80,6 +80,14 @@ async function init() {
     BEGIN RAISE EXCEPTION 'project_audit es de solo inserción'; END; $$ LANGUAGE plpgsql`;
   await q`DROP TRIGGER IF EXISTS project_audit_no_change ON project_audit`;
   await q`CREATE TRIGGER project_audit_no_change BEFORE UPDATE OR DELETE ON project_audit FOR EACH ROW EXECUTE FUNCTION project_audit_append_only()`;
+  // Plantillas estándar: URL del documento maestro en la carpeta madre (carga inicial única).
+  await q`CREATE TABLE IF NOT EXISTS template_documents (
+    template_id text PRIMARY KEY,
+    doc_id text NOT NULL,
+    url text NOT NULL,
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`;
   await seedInitialUsers();
 }
 

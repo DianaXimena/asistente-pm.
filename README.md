@@ -52,8 +52,12 @@ Las tablas se crean solas en el primer acceso; los usuarios iniciales solo se cr
 ## Repositorio de Plantillas (CMMI / PMP)
 
 `/repositorio`: catálogo de 13 plantillas con tipo de proyecto, grupo de procesos (tooltips PMP), propósito y
-acción "Generar / Abrir en Google Docs". La generación usa Google Apps Script (`google-apps-script/`) a través de
-`/api/drive/generate`, con las variables `GOOGLE_APPS_SCRIPT_URL` y `GOOGLE_APPS_SCRIPT_TOKEN`.
+enlace directo "Abrir en Google Docs" (más "Hacer una copia"). No genera documentos bajo demanda.
+
+**Carga inicial (una sola vez):** un administrador hace clic en "Inicializar repositorio"; `/api/templates/seed`
+llama a Google Apps Script (`google-apps-script/`), que crea cada plantilla en la carpeta madre, y la URL queda en
+la tabla `template_documents`. Es idempotente: si se repite, no duplica. Variables: `GOOGLE_APPS_SCRIPT_URL` y
+`GOOGLE_APPS_SCRIPT_TOKEN`.
 Guía de instalación: [`google-apps-script/README.md`](./google-apps-script/README.md).
 
 ## Flujo actual

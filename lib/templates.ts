@@ -360,16 +360,17 @@ export const TEMPLATES: DocTemplate[] = [
 
 export const getTemplate = (id: string) => TEMPLATES.find((t) => t.id === id);
 
+/** Plantillas maestras: el encabezado lleva campos para completar en cada uso. */
+export const STATIC_HEADER = { client: "[Nombre del cliente]", project: "[Nombre del proyecto]", date: "[dd/mm/aaaa]" };
+
+/** Nombre del documento maestro en la carpeta madre. */
+export const templateDocName = (t: DocTemplate) => `${t.name} — Plantilla Estándar`;
+
+/** Enlace que abre el diálogo "Hacer una copia" de Google Docs (a partir del ID del documento). */
+export const copyUrl = (docId: string) => `https://docs.google.com/document/d/${encodeURIComponent(docId)}/copy`;
+
 const APPROACH_TO_TYPE: Record<ApproachType, TemplateType> = { Predictivo: "Predictivo", Agil: "Ágil", Hibrido: "Híbrido" };
 
-/**
- * Subcarpeta de destino: el tipo del documento; si admite varios tipos y uno coincide
- * con el enfoque del proyecto, se usa ese; si no, el primero de la lista.
- */
-export function folderTypeFor(t: DocTemplate, approach?: ApproachType | null): TemplateType {
-  const own = approach ? APPROACH_TO_TYPE[approach] : null;
-  return own && t.types.includes(own) ? own : t.types[0];
-}
-
+/** Plantilla aplicable al enfoque del proyecto (o de uso general). */
 export const isRecommended = (t: DocTemplate, approach?: ApproachType | null) =>
   !!approach && (t.types.includes(APPROACH_TO_TYPE[approach]) || t.types.includes("General"));

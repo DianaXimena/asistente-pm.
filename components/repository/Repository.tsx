@@ -1,41 +1,50 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import clsx from "clsx";
-import { AlertTriangle, ExternalLink, FilePlus2, FolderOpen, Loader2, Search, Sparkles } from "lucide-react";
-import { APPROACH_LABEL } from "@/lib/assistant";
+import { AlertTriangle, Copy, ExternalLink, FolderOpen, Rocket, Search, Sparkles } from "lucide-react";
 import { PHASE_TOOLTIPS } from "@/lib/pmp";
 import { useProject } from "@/lib/store";
-import { DRIVE_ROOT_FOLDER_ID, PHASE_SHORT, TEMPLATES, folderTypeFor, isRecommended, type DocTemplate, type TemplateType } from "@/lib/templates";
-import type { PhaseId, Project } from "@/lib/types";
+import { DRIVE_ROOT_FOLDER_ID, PHASE_SHORT, TEMPLATES, copyUrl, isRecommended, type DocTemplate, type TemplateType } from "@/lib/templates";
+import type { PhaseId } from "@/lib/types";
 import { inputClass } from "../acta/fields";
 import { Tooltip } from "../Tooltip";
 import { btnPrimary, btnSecondary, card } from "../ui";
 
 const TYPES: TemplateType[] = ["Predictivo", "Ágil", "Híbrido", "General"];
 const PHASES: PhaseId[] = ["inicio", "planificacion", "ejecucion", "control", "cierre"];
-const GUIDE_URL = "https://github.com/DianaXimena/asistente-pm./blob/HEAD/google-apps-script/README.md";
+const ROOT_URL = `https://drive.google.com/drive/folders/${DRIVE_ROOT_FOLDER_ID}`;
 
-type RowState = { status: "idle" | "loading" | "error"; message?: string };
+type DocLink = { url: string; doc_id: string };
+interface Catalog {
+  docs: Record<string, DocLink>;
+  canSeed: boolean;
+  driveConfigured: boolean;
+}
 
+/**
+ * Repositorio de acceso inmediato: cada plantilla enlaza al documento maestro que ya
+ * existe en la carpeta madre de Google Drive. No genera nada bajo demanda.
+ */
 export function Repository() {
-  const { project, projects, selectProject, hydrated, saveDriveDoc } = useProject();
-  const [configured, setConfigured] = useState<boolean | null>(null);
+  const { project } = useProject();
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [q, setQ] = useState("");
   const [type, setType] = useState<TemplateType | "">("");
   const [phase, setPhase] = useState<PhaseId | "">("");
   const [onlyRecommended, setOnlyRecommended] = useState(false);
-  const [rows, setRows] = useState<Record<string, RowState>>({});
-  const [notice, setNotice] = useState("");
 
+  const load = () =>
+    fetch("/api/templates", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: Catalog) => setCatalog(d))
+      .catch(() => setLoadError(true));
   useEffect(() => {
-    fetch("/api/drive/status")
-      .then((r) => r.json())
-      .then((d: { configured: boolean }) => setConfigured(d.configured))
-      .catch(() => setConfigured(false));
+    load();
   }, []);
 
+  const approach = project?.approach?.type;
   const list = useMemo(() => {
     const term = q.trim().toLowerCase();
     return TEMPLATES.filter(
@@ -43,97 +52,21 @@ export function Repository() {
         (!term || t.name.toLowerCase().includes(term) || t.purpose.toLowerCase().includes(term)) &&
         (!type || t.types.includes(type)) &&
         (!phase || t.phases.includes(phase)) &&
-        (!onlyRecommended || isRecommended(t, project?.approach?.type)),
+        (!onlyRecommended || isRecommended(t, approach)),
     );
-  }, [q, type, phase, onlyRecommended, project?.approach?.type]);
+  }, [q, type, phase, onlyRecommended, approach]);
 
-  const generate = async (t: DocTemplate, p: Project) => {
-    setRows((r) => ({ ...r, [t.id]: { status: "loading" } }));
-    setNotice("");
-    try {
-      const res = await fetch("/api/drive/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          templateId: t.id,
-          client: p.client_name,
-          project: p.project_name,
-          approach: p.approach?.type ?? null,
-          date: new Date().toLocaleDateString("es-EC", { day: "2-digit", month: "long", year: "numeric" }),
-        }),
-      });
-      const data = (await res.json()) as { id?: string; url?: string; folder?: string; reused?: boolean; error?: string };
-      if (!res.ok || !data.url || !data.id) throw new Error(data.error ?? "drive_error");
-      saveDriveDoc(t.id, { id: data.id, url: data.url, folder: data.folder ?? folderTypeFor(t, p.approach?.type), generated_at: new Date().toISOString() }, t.name);
-      setRows((r) => ({ ...r, [t.id]: { status: "idle" } }));
-      setNotice(`${t.name}: ${data.reused ? "ya existía y se vinculó" : "generado"} en la carpeta “${data.folder}”.`);
-    } catch (e) {
-      const code = e instanceof Error ? e.message : "";
-      const message =
-        code === "not_configured"
-          ? "La integración con Google Drive no está configurada."
-          : code === "unauthorized"
-            ? "El token del servidor no coincide con el de Apps Script."
-            : code === "drive_unreachable"
-              ? "No se pudo contactar a Google Apps Script."
-              : `No se pudo generar el documento (${code || "error"}).`;
-      setRows((r) => ({ ...r, [t.id]: { status: "error", message } }));
-    }
-  };
+  const ready = catalog ? TEMPLATES.filter((t) => catalog.docs[t.id]).length : 0;
+  const complete = ready === TEMPLATES.length;
 
   return (
     <div className="space-y-6">
-      {configured === false && (
-        <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-semaforo-ambar/40 bg-white p-5 shadow-card sm:flex-row sm:items-center sm:justify-between">
-          <p className="flex gap-2 text-sm text-kruger-dark">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-semaforo-ambar" />
-            La conexión con Google Drive aún no está configurada en el servidor. Puedes revisar el catálogo; para generar documentos sigue la guía de instalación.
-          </p>
-          <a href={GUIDE_URL} target="_blank" rel="noreferrer" className={clsx(btnSecondary, "shrink-0")}>
-            Ver guía <ExternalLink className="h-4 w-4" />
-          </a>
-        </div>
+      {catalog && !complete && (catalog.canSeed ? <SeedPanel catalog={catalog} onDone={load} /> : <PendingNotice ready={ready} />)}
+      {loadError && (
+        <p role="alert" className="rounded-xl bg-semaforo-rojo/5 px-4 py-3 text-sm text-semaforo-rojo">
+          No se pudo cargar el repositorio. Recarga la página.
+        </p>
       )}
-
-      {/* Proyecto de contexto: alimenta el encabezado de cada documento */}
-      <section className={clsx(card, "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between")}>
-        {hydrated && projects.length === 0 ? (
-          <p className="text-sm text-kruger-dark/70">
-            Crea un proyecto en el{" "}
-            <Link href="/" className="font-medium text-kruger-orange hover:underline">
-              portafolio
-            </Link>{" "}
-            para generar documentos con su encabezado.
-          </p>
-        ) : (
-          <>
-            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-kruger-dark/60">
-              Proyecto para el encabezado (cliente, proyecto y fecha)
-              <select className={inputClass} value={project?.project_id ?? ""} onChange={(e) => selectProject(e.target.value)}>
-                {!project && <option value="">Selecciona un proyecto…</option>}
-                {projects.map((p) => (
-                  <option key={p.project_id} value={p.project_id}>
-                    {p.client_name} · {p.project_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              {project?.approach && (
-                <span className="rounded-full bg-kruger-orange-soft px-3 py-1 font-semibold text-kruger-orange">Enfoque {APPROACH_LABEL[project.approach.type]}</span>
-              )}
-              <a
-                href={`https://drive.google.com/drive/folders/${DRIVE_ROOT_FOLDER_ID}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-full border border-kruger-gray/40 px-3 py-1 font-medium text-kruger-dark hover:border-kruger-orange"
-              >
-                <FolderOpen className="h-3.5 w-3.5 text-kruger-orange" /> Carpeta madre en Drive
-              </a>
-            </div>
-          </>
-        )}
-      </section>
 
       {/* Filtros */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
@@ -155,15 +88,16 @@ export function Repository() {
             </option>
           ))}
         </select>
-        {project?.approach && (
+        {approach && (
           <label className="flex shrink-0 items-center gap-2 text-sm text-kruger-dark">
             <input type="checkbox" className="h-4 w-4 accent-kruger-orange" checked={onlyRecommended} onChange={(e) => setOnlyRecommended(e.target.checked)} />
             Solo para mi enfoque
           </label>
         )}
+        <a href={ROOT_URL} target="_blank" rel="noreferrer" className={clsx(btnSecondary, "shrink-0 whitespace-nowrap")}>
+          <FolderOpen className="h-4 w-4 text-kruger-orange" /> Carpeta madre
+        </a>
       </div>
-
-      {notice && <p className="rounded-xl bg-semaforo-verde/10 px-4 py-3 text-sm text-kruger-dark">{notice}</p>}
 
       {/* Tabla (escritorio) */}
       <div className="hidden overflow-hidden rounded-2xl border border-kruger-gray/25 bg-white shadow-card md:block">
@@ -178,24 +112,27 @@ export function Repository() {
             </tr>
           </thead>
           <tbody className="divide-y divide-kruger-gray/20">
-            {list.map((t) => (
-              <tr key={t.id} className="align-top transition hover:bg-kruger-orange-soft/40">
-                <td className="px-4 py-4">
-                  <p className="font-semibold text-kruger-dark">{t.name}</p>
-                  {isRecommended(t, project?.approach?.type) && <RecommendedBadge />}
-                </td>
-                <td className="px-4 py-4">
-                  <TypeChips t={t} />
-                </td>
-                <td className="px-4 py-4">
-                  <PhaseChips t={t} />
-                </td>
-                <td className="max-w-sm px-4 py-4 text-kruger-dark/75">{t.purpose}</td>
-                <td className="px-4 py-4 text-right">
-                  <Action t={t} project={project} configured={configured} state={rows[t.id]} onGenerate={generate} />
-                </td>
-              </tr>
-            ))}
+            {list.map((t) => {
+              const doc = catalog?.docs[t.id];
+              return (
+                <tr key={t.id} className="align-top transition hover:bg-kruger-orange-soft/40">
+                  <td className="px-4 py-4">
+                    <DocName t={t} doc={doc} />
+                    {isRecommended(t, approach) && <RecommendedBadge />}
+                  </td>
+                  <td className="px-4 py-4">
+                    <TypeChips t={t} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <PhaseChips t={t} />
+                  </td>
+                  <td className="max-w-sm px-4 py-4 text-kruger-dark/75">{t.purpose}</td>
+                  <td className="px-4 py-4 text-right">
+                    <DocActions doc={doc} name={t.name} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {list.length === 0 && <p className="px-4 py-8 text-center text-sm text-kruger-dark/60">Ningún documento coincide con los filtros.</p>}
@@ -203,28 +140,141 @@ export function Repository() {
 
       {/* Tarjetas (móvil) */}
       <ul className="space-y-3 md:hidden">
-        {list.map((t) => (
-          <li key={t.id} className={card}>
-            <p className="font-semibold text-kruger-dark">{t.name}</p>
-            {isRecommended(t, project?.approach?.type) && <RecommendedBadge />}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <TypeChips t={t} />
-              <PhaseChips t={t} />
-            </div>
-            <p className="mt-3 text-sm text-kruger-dark/75">{t.purpose}</p>
-            <div className="mt-4">
-              <Action t={t} project={project} configured={configured} state={rows[t.id]} onGenerate={generate} />
-            </div>
-          </li>
-        ))}
+        {list.map((t) => {
+          const doc = catalog?.docs[t.id];
+          return (
+            <li key={t.id} className={card}>
+              <DocName t={t} doc={doc} />
+              {isRecommended(t, approach) && <RecommendedBadge />}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <TypeChips t={t} />
+                <PhaseChips t={t} />
+              </div>
+              <p className="mt-3 text-sm text-kruger-dark/75">{t.purpose}</p>
+              <div className="mt-4">
+                <DocActions doc={doc} name={t.name} />
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
 }
 
+/** El nombre también abre el documento maestro. */
+function DocName({ t, doc }: { t: DocTemplate; doc?: DocLink }) {
+  return doc ? (
+    <a href={doc.url} target="_blank" rel="noreferrer" className="font-semibold text-kruger-dark hover:text-kruger-orange hover:underline">
+      {t.name}
+    </a>
+  ) : (
+    <p className="font-semibold text-kruger-dark">{t.name}</p>
+  );
+}
+
+function DocActions({ doc, name }: { doc?: DocLink; name: string }) {
+  if (!doc) return <span className="text-xs text-kruger-dark/55">Pendiente de carga inicial</span>;
+  return (
+    <span className="inline-flex flex-col items-end gap-1.5">
+      <a href={doc.url} target="_blank" rel="noreferrer" aria-label={`Abrir ${name} en Google Docs`} className={clsx(btnPrimary, "whitespace-nowrap")}>
+        <ExternalLink className="h-4 w-4" /> Abrir en Google Docs
+      </a>
+      <a href={copyUrl(doc.doc_id)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-kruger-orange hover:underline">
+        <Copy className="h-3.5 w-3.5" /> Hacer una copia
+      </a>
+    </span>
+  );
+}
+
+function PendingNotice({ ready }: { ready: number }) {
+  return (
+    <div role="status" className="flex items-start gap-3 rounded-2xl border border-semaforo-ambar/40 bg-white p-5 text-sm text-kruger-dark shadow-card">
+      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-semaforo-ambar" />
+      <p>
+        El repositorio aún no está completo ({ready} de {TEMPLATES.length} plantillas disponibles). Un administrador debe realizar la carga inicial.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Carga inicial (una sola vez): crea en la carpeta madre las plantillas que falten y
+ * registra sus enlaces. Se procesa una plantilla por petición.
+ */
+function SeedPanel({ catalog, onDone }: { catalog: Catalog; onDone: () => void }) {
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(0);
+  const [errors, setErrors] = useState<string[]>([]);
+  const missing = TEMPLATES.filter((t) => !catalog.docs[t.id]);
+
+  const run = async () => {
+    setRunning(true);
+    setErrors([]);
+    setDone(0);
+    const errs: string[] = [];
+    for (const t of missing) {
+      const res = await fetch("/api/templates/seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId: t.id }),
+      }).catch(() => null);
+      const data = res ? ((await res.json().catch(() => ({}))) as { error?: string }) : { error: "drive_unreachable" };
+      if (!res?.ok) errs.push(`${t.name}: ${data.error ?? "error"}`);
+      setDone((d) => d + 1);
+    }
+    setErrors(errs);
+    setRunning(false);
+    onDone();
+  };
+
+  return (
+    <section className="space-y-4 rounded-2xl border border-kruger-orange/40 bg-white p-6 shadow-card">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-kruger-orange-soft text-kruger-orange">
+          <Rocket className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-kruger-dark">Carga inicial del repositorio (se realiza una sola vez)</p>
+          <p className="mt-1 text-sm text-kruger-dark/70">
+            Crea en la carpeta madre de Google Drive {missing.length === TEMPLATES.length ? "las 13 plantillas estándar" : `las ${missing.length} plantillas que faltan`} y
+            guarda sus enlaces para que todos los usuarios accedan al instante. Solo los administradores ven este panel.
+          </p>
+        </div>
+      </div>
+      {!catalog.driveConfigured ? (
+        <p className="rounded-xl bg-semaforo-ambar/10 px-4 py-3 text-sm text-kruger-dark">
+          Falta configurar GOOGLE_APPS_SCRIPT_URL y GOOGLE_APPS_SCRIPT_TOKEN en Vercel.
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-4">
+          <button type="button" className={btnPrimary} disabled={running} onClick={run}>
+            <Rocket className="h-4 w-4" /> {running ? `Creando… ${done}/${missing.length}` : "Inicializar repositorio"}
+          </button>
+          {running && (
+            <div className="h-2 w-48 rounded-full bg-kruger-gray-soft" role="progressbar" aria-valuenow={done} aria-valuemax={missing.length} aria-label="Progreso de la carga inicial">
+              <div className="h-2 rounded-full bg-kruger-orange transition-[width]" style={{ width: `${(done / Math.max(1, missing.length)) * 100}%` }} />
+            </div>
+          )}
+        </div>
+      )}
+      {errors.length > 0 && (
+        <div role="alert" className="rounded-xl bg-semaforo-rojo/5 px-4 py-3 text-sm text-semaforo-rojo">
+          <p className="font-medium">No se pudieron crear {errors.length} plantilla(s). Puedes reintentar: las ya creadas no se duplican.</p>
+          <ul className="mt-1 list-inside list-disc text-xs">
+            {errors.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
 const RecommendedBadge = () => (
-  <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-kruger-orange">
-    <Sparkles className="h-3 w-3" /> Recomendado para el enfoque del proyecto
+  <span className="mt-1 flex items-center gap-1 text-[11px] font-medium text-kruger-orange">
+    <Sparkles className="h-3 w-3" /> Aplica al enfoque del proyecto activo
   </span>
 );
 
@@ -245,48 +295,14 @@ function PhaseChips({ t }: { t: DocTemplate }) {
     <span className="flex flex-wrap gap-1">
       {t.phases.map((p) => (
         <Tooltip key={p} content={PHASE_TOOLTIPS[p]} side="top" className="inline-block">
-          <span tabIndex={0} className="inline-block cursor-help rounded-full border border-kruger-orange/30 px-2.5 py-0.5 text-xs font-medium text-kruger-orange outline-none focus-visible:ring-2 focus-visible:ring-kruger-orange/40">
+          <span
+            tabIndex={0}
+            className="inline-block cursor-help rounded-full border border-kruger-orange/30 px-2.5 py-0.5 text-xs font-medium text-kruger-orange outline-none focus-visible:ring-2 focus-visible:ring-kruger-orange/40"
+          >
             {PHASE_SHORT[p]}
           </span>
         </Tooltip>
       ))}
-    </span>
-  );
-}
-
-function Action({
-  t,
-  project,
-  configured,
-  state,
-  onGenerate,
-}: {
-  t: DocTemplate;
-  project: Project | null;
-  configured: boolean | null;
-  state?: RowState;
-  onGenerate: (t: DocTemplate, p: Project) => void;
-}) {
-  const existing = project?.drive_docs?.[t.id];
-  if (existing)
-    return (
-      <span className="inline-flex flex-col items-end gap-1">
-        <a href={existing.url} target="_blank" rel="noreferrer" className={clsx(btnSecondary, "whitespace-nowrap")}>
-          <ExternalLink className="h-4 w-4 text-kruger-orange" /> Abrir en Google Docs
-        </a>
-        <span className="text-[11px] text-kruger-dark/55">Carpeta: {existing.folder}</span>
-      </span>
-    );
-  const disabled = !project || configured !== true || state?.status === "loading";
-  const reason = !project ? "Selecciona un proyecto" : configured === false ? "Integración con Google Drive no configurada" : "";
-  return (
-    <span className="inline-flex flex-col items-end gap-1">
-      <button type="button" className={clsx(btnPrimary, "whitespace-nowrap")} disabled={disabled} title={reason} onClick={() => project && onGenerate(t, project)}>
-        {state?.status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FilePlus2 className="h-4 w-4" />}
-        {state?.status === "loading" ? "Generando…" : "Generar en Google Docs"}
-      </button>
-      {project && <span className="text-[11px] text-kruger-dark/55">Se guardará en: {folderTypeFor(t, project.approach?.type)}</span>}
-      {state?.status === "error" && <span className="max-w-[16rem] text-right text-[11px] text-semaforo-rojo">{state.message}</span>}
     </span>
   );
 }
