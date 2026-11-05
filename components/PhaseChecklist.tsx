@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
-import { inputSemaforo } from "@/lib/assistant";
+import { ChevronRight, Lock, Paperclip } from "lucide-react";
+import { inputSemaforo, missingRequirements } from "@/lib/assistant";
 import { QUESTIONNAIRES } from "@/lib/questionnaires";
-import type { Phase } from "@/lib/types";
+import type { Phase, Project } from "@/lib/types";
 import { SemaforoDot, SemaforoLegend } from "./Semaforo";
 
 /** Checklist de insumos mínimos obligatorios (bloqueantes) de una fase. */
-export function PhaseChecklist({ phase, isCurrent }: { phase: Phase; isCurrent: boolean }) {
+export function PhaseChecklist({ project, phase, isCurrent }: { project: Project; phase: Phase; isCurrent: boolean }) {
   const approved = phase.mandatory_inputs.filter((i) => i.status === "Aprobado").length;
 
   return (
@@ -24,18 +24,29 @@ export function PhaseChecklist({ phase, isCurrent }: { phase: Phase; isCurrent: 
 
       <ul className="mt-5 divide-y divide-kruger-gray/20">
         {phase.mandatory_inputs.map((input) => {
+          const missing = missingRequirements(project, input);
           const content = (
             <>
               <SemaforoDot value={inputSemaforo(input.status, isCurrent)} />
-              <span className="min-w-0 flex-1 truncate text-sm text-kruger-dark">{input.artifact_name}</span>
-              <span className="shrink-0 rounded-full bg-kruger-gray-soft px-2.5 py-0.5 text-xs text-kruger-dark/70">
-                {input.status}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-kruger-dark">{input.artifact_name}</span>
+                {input.source === "archivo" && input.file_name && (
+                  <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-kruger-dark/55">
+                    <Paperclip className="h-3 w-3 shrink-0" /> {input.file_name}
+                  </span>
+                )}
+                {input.status !== "Aprobado" && missing.length > 0 && (
+                  <span className="mt-0.5 flex items-center gap-1 text-xs text-kruger-dark/55">
+                    <Lock className="h-3 w-3 shrink-0" /> Requiere: {missing.map((m) => m.artifact_name).join(", ")}
+                  </span>
+                )}
               </span>
+              <span className="shrink-0 rounded-full bg-kruger-gray-soft px-2.5 py-0.5 text-xs text-kruger-dark/70">{input.status}</span>
             </>
           );
           return (
             <li key={input.artifact_name}>
-              {isCurrent && input.questionnaire && input.status !== "Aprobado" ? (
+              {isCurrent && input.questionnaire ? (
                 <Link
                   href={QUESTIONNAIRES[input.questionnaire].href}
                   className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition hover:bg-kruger-orange-soft"

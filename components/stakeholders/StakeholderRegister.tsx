@@ -7,12 +7,12 @@ import { AlertTriangle, CheckCircle2, LayoutDashboard, Pencil, Plus, Trash2, Use
 import { engagementLabel, isStakeholderComplete, needsPriorityEngagement, newStakeholder, quadrant } from "@/lib/stakeholders";
 import { useProject } from "@/lib/store";
 import type { Project, Stakeholder } from "@/lib/types";
-import { RequireProject } from "../RequireProject";
+import { QuestionnaireGate } from "../QuestionnaireGate";
 import { btnPrimary, btnSecondary, card } from "../ui";
 import { StakeholderForm } from "./StakeholderForm";
 
 export function StakeholderRegister() {
-  return <RequireProject>{(p) => <Register project={p} />}</RequireProject>;
+  return <QuestionnaireGate id="registro-interesados">{(p) => <Register project={p} />}</QuestionnaireGate>;
 }
 
 function Register({ project }: { project: Project }) {

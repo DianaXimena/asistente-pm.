@@ -19,9 +19,19 @@ export function initialPhases(): Phase[] {
       status: "No Iniciada",
       progress_percentage: 0,
       mandatory_inputs: [
-        { artifact_name: "Línea Base del Alcance (EDT + Diccionario)", status: "No Iniciado" },
-        { artifact_name: "Línea Base del Cronograma", status: "No Iniciado" },
-        { artifact_name: "Línea Base de Costos", status: "No Iniciado" },
+        { artifact_name: "Línea Base del Alcance (EDT + Diccionario)", status: "No Iniciado", questionnaire: "linea-base-alcance" },
+        {
+          artifact_name: "Línea Base del Cronograma",
+          status: "No Iniciado",
+          questionnaire: "linea-base-cronograma",
+          requires: ["linea-base-alcance"],
+        },
+        {
+          artifact_name: "Línea Base de Costos",
+          status: "No Iniciado",
+          questionnaire: "linea-base-costos",
+          requires: ["linea-base-alcance", "registro-riesgos"],
+        },
         { artifact_name: "Registro de Riesgos con Dueños", status: "No Iniciado", questionnaire: "registro-riesgos" },
       ],
     },
@@ -73,5 +83,6 @@ export function createProject(clientName: string, projectName: string): Project 
     phases: initialPhases(),
     stakeholders: [],
     stakeholder_register_approved: false,
+    risks: [],
   };
 }

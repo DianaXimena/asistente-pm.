@@ -123,7 +123,7 @@ function DashboardView({ project }: { project: Project }) {
 
           <AssistantCard data={assistant} onAdvance={advancePhase} />
 
-          <PhaseChecklist phase={selectedPhase} isCurrent={selectedPhase.id === project.current_phase} />
+          <PhaseChecklist project={project} phase={selectedPhase} isCurrent={selectedPhase.id === project.current_phase} />
         </div>
       </main>
     </div>

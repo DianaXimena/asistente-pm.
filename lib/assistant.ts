@@ -19,6 +19,14 @@ export function canAdvance(project: Project): boolean {
   return !!ph && idx < project.phases.length - 1 && ph.mandatory_inputs.every((i) => i.status === "Aprobado");
 }
 
+/** Dependencias pendientes de un insumo (deben estar aprobadas para iniciar su cuestionario). */
+export function missingRequirements(project: Project, input: MandatoryInput): MandatoryInput[] {
+  const all = project.phases.flatMap((p) => p.mandatory_inputs);
+  return (input.requires ?? [])
+    .map((q) => all.find((i) => i.questionnaire === q))
+    .filter((i): i is MandatoryInput => !!i && i.status !== "Aprobado");
+}
+
 /** Progreso global: promedio de las 5 fases con peso equitativo (20% cada una). */
 export function getOverallProgress(project: Project): number {
   const total = project.phases.reduce((acc, p) => acc + p.progress_percentage, 0);
@@ -87,8 +95,8 @@ export function getAssistantMessage(project: Project): AssistantMessage {
   const pending = phase.mandatory_inputs.filter((i) => i.status !== "Aprobado");
   const actionable = pending.filter((i) => i.status !== "Pendiente de Firma");
 
-  // 2. Insumo con cuestionario guiado.
-  const withQ = actionable.find((i) => i.questionnaire);
+  // 2. Insumo con cuestionario guiado cuyas dependencias ya están aprobadas.
+  const withQ = actionable.find((i) => i.questionnaire && missingRequirements(project, i).length === 0);
   if (withQ?.questionnaire) {
     const q = QUESTIONNAIRES[withQ.questionnaire];
     return {
@@ -119,7 +127,10 @@ export function getAssistantMessage(project: Project): AssistantMessage {
     return {
       ...common,
       message: `${base} Todos los insumos obligatorios están aprobados. Haz clic aquí para avanzar a ${next.phase_name}.`,
-      cta: { kind: "advance", label: `Avanzar a ${next.phase_name}` },
+      cta: {
+        kind: "advance",
+        label: phase.id === "planificacion" ? `Aprobar Plan y avanzar a ${next.phase_name}` : `Avanzar a ${next.phase_name}`,
+      },
     };
   }
 

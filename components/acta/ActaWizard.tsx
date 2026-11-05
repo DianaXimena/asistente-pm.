@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight, FileCheck2, Plus, Trash2 } from "lucide-react";
 import { AUTHORITY_OPTIONS, EMPTY_ACTA, isStepValid, isValidEmail } from "@/lib/acta";
 import { ACTA_DRAFT_KEY, useProject } from "@/lib/store";
 import type { ActaFormData, PmAuthority } from "@/lib/types";
-import { RequireProject } from "../RequireProject";
+import { QuestionnaireGate } from "../QuestionnaireGate";
 import { ActaSummary } from "./ActaSummary";
 import { Field, StepDots, StepHeading, inputClass } from "./fields";
 
@@ -18,7 +18,7 @@ const TOTAL = 4;
  * una sola pregunta por pantalla → Generar → Resumen y enlace a Drive.
  */
 export function ActaWizard() {
-  return <RequireProject>{() => <Wizard />}</RequireProject>;
+  return <QuestionnaireGate id="acta-constitucion">{() => <Wizard />}</QuestionnaireGate>;
 }
 
 function Wizard() {

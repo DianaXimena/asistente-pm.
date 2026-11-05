@@ -9,14 +9,26 @@ export type PhaseStatus = "Completada" | "En Progreso" | "Bloqueada" | "No Inici
 
 export type InputStatus = "Aprobado" | "Pendiente de Firma" | "En Progreso" | "No Iniciado";
 
-/** Cuestionarios cortos guiados por el asistente. */
-export type QuestionnaireId = "acta-constitucion" | "registro-interesados" | "registro-riesgos" | "solicitud-cambio";
+/** Cuestionarios guiados por el asistente. */
+export type QuestionnaireId =
+  | "acta-constitucion"
+  | "registro-interesados"
+  | "linea-base-alcance"
+  | "linea-base-cronograma"
+  | "registro-riesgos"
+  | "linea-base-costos"
+  | "solicitud-cambio";
 
 export interface MandatoryInput {
   artifact_name: string;
   status: InputStatus;
   /** Si el insumo se genera con un cuestionario guiado del asistente. */
   questionnaire?: QuestionnaireId;
+  /** Insumos que deben estar aprobados antes de iniciar este cuestionario. */
+  requires?: QuestionnaireId[];
+  /** Cómo se completó: con el cuestionario o adjuntando el documento (cuestionario omitido). */
+  source?: "cuestionario" | "archivo";
+  file_name?: string;
 }
 
 export interface Phase {
@@ -91,6 +103,87 @@ export interface Stakeholder {
   action_plan: string;
 }
 
+/* ---------- Planificación (guía PMP / PMBOK) ---------- */
+
+/** Paquete de trabajo de la EDT con su entrada en el Diccionario de la EDT. */
+export interface WorkPackage {
+  id: string;
+  name: string;
+  description: string;
+  owner: string;
+  acceptance: string;
+}
+
+export interface Deliverable {
+  id: string;
+  name: string;
+  work_packages: WorkPackage[];
+}
+
+/** Línea Base del Alcance = Enunciado del Alcance + EDT + Diccionario de la EDT. */
+export interface ScopeBaseline {
+  product_description: string;
+  acceptance_criteria: string;
+  deliverables: Deliverable[];
+  exclusions: string;
+  assumptions: string;
+  constraints: string;
+}
+
+export type ScheduleMethod = "Estimación única" | "Tres valores (PERT)";
+
+export interface ScheduleItem {
+  /** Id del paquete de trabajo (o ítem libre si la EDT se cargó como archivo). */
+  id: string;
+  name: string;
+  /** Duración en días laborables (estimación única o resultado PERT). */
+  most_likely: string;
+  optimistic: string;
+  pessimistic: string;
+  /** Predecesora fin-a-inicio. */
+  predecessor: string;
+}
+
+export interface ScheduleBaseline {
+  start_date: string;
+  method: ScheduleMethod;
+  items: ScheduleItem[];
+}
+
+export type RiskType = "Amenaza" | "Oportunidad";
+
+export interface Risk {
+  risk_id: string;
+  cause: string;
+  event: string;
+  effect: string;
+  type: RiskType | "";
+  /** Probabilidad en % (0–100). */
+  probability: string;
+  /** Impacto monetario en USD. */
+  impact: string;
+  strategy: string;
+  response: string;
+  owner: string;
+}
+
+export type CostMethod = "Análoga" | "Paramétrica" | "Ascendente (bottom-up)";
+
+export interface CostItem {
+  id: string;
+  name: string;
+  estimate: string;
+}
+
+export interface CostBaseline {
+  method: CostMethod | "";
+  items: CostItem[];
+  /** Solo se usa si el Registro de Riesgos se cargó como archivo (sin EMV calculable). */
+  manual_contingency: string;
+  /** % de reserva de gestión definido por la PMO / gobernanza. */
+  management_reserve_pct: string;
+}
+
 export interface Project {
   project_id: string;
   client_name: string;
@@ -105,6 +198,12 @@ export interface Project {
   stakeholders: Stakeholder[];
   /** El PM confirmó el Registro de Interesados inicial. */
   stakeholder_register_approved: boolean;
+  scope?: ScopeBaseline;
+  schedule?: ScheduleBaseline;
+  risks: Risk[];
+  /** El PM confirmó el Registro de Riesgos. */
+  risk_register_approved?: boolean;
+  costs?: CostBaseline;
 }
 
 /** Semáforo visual del motor de fases: Verde completo, Ámbar pendiente, Rojo bloqueante. */

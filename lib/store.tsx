@@ -4,21 +4,49 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { calcInicioProgress } from "./acta";
 import { canAdvance } from "./assistant";
 import { createProject } from "./project-factory";
+import { isRiskComplete } from "./planning";
 import { isStakeholderComplete } from "./stakeholders";
-import type { ActaFormData, Approach, FirstInput, InputStatus, Phase, Project, QuestionnaireId, Stakeholder } from "./types";
+import type {
+  ActaFormData,
+  Approach,
+  CostBaseline,
+  FirstInput,
+  InputStatus,
+  MandatoryInput,
+  Phase,
+  Project,
+  QuestionnaireId,
+  Risk,
+  ScheduleBaseline,
+  ScopeBaseline,
+  Stakeholder,
+} from "./types";
 
 // Persistencia provisional en el navegador hasta conectar una base de datos real.
-const STORAGE_KEY = "asistente-pm:project:v2";
+const STORAGE_KEY = "asistente-pm:project:v3";
 export const ACTA_DRAFT_KEY = "asistente-pm:acta-draft:v2";
 
-function setInputStatus(p: Project, q: QuestionnaireId, status: InputStatus): Project {
+function patchInput(p: Project, q: QuestionnaireId, patch: Partial<MandatoryInput>): Project {
   return {
     ...p,
     phases: p.phases.map((ph) => ({
       ...ph,
-      mandatory_inputs: ph.mandatory_inputs.map((i) => (i.questionnaire === q ? { ...i, status } : i)),
+      mandatory_inputs: ph.mandatory_inputs.map((i) => (i.questionnaire === q ? { ...i, ...patch } : i)),
     })),
   };
+}
+
+const setInputStatus = (p: Project, q: QuestionnaireId, status: InputStatus) => patchInput(p, q, { status });
+
+export function findInput(p: Project, q: QuestionnaireId): MandatoryInput | undefined {
+  return p.phases.flatMap((ph) => ph.mandatory_inputs).find((i) => i.questionnaire === q);
+}
+
+/** Registro con lista de ítems: Aprobado si el PM lo confirmó y todo está completo; si no, En Progreso. */
+function registerStatus(p: Project, q: QuestionnaireId, count: number, allComplete: boolean, approved: boolean): InputStatus {
+  if (findInput(p, q)?.source === "archivo") return "Aprobado";
+  if (approved && count > 0 && allComplete) return "Aprobado";
+  return count > 0 ? "En Progreso" : "No Iniciado";
 }
 
 const approvedRatio = (ph: Phase) =>
@@ -32,12 +60,18 @@ const approvedRatio = (ph: Phase) =>
  *   (Ejecución, Control y Cierre usarán sus fórmulas propias cuando se construyan.)
  */
 function recompute(input: Project): Project {
-  const allComplete = input.stakeholders.length > 0 && input.stakeholders.every(isStakeholderComplete);
-  const approved = input.stakeholder_register_approved && allComplete;
-  const registerStatus: InputStatus = approved ? "Aprobado" : input.stakeholders.length > 0 ? "En Progreso" : "No Iniciado";
+  const stkComplete = input.stakeholders.every(isStakeholderComplete);
+  const stkStatus = registerStatus(input, "registro-interesados", input.stakeholders.length, stkComplete, input.stakeholder_register_approved);
+  const riskComplete = input.risks.every(isRiskComplete);
+  const riskStatus = registerStatus(input, "registro-riesgos", input.risks.length, riskComplete, !!input.risk_register_approved);
 
-  let p: Project = { ...input, stakeholder_register_approved: approved };
-  p = setInputStatus(p, "registro-interesados", registerStatus);
+  let p: Project = {
+    ...input,
+    stakeholder_register_approved: stkStatus === "Aprobado",
+    risk_register_approved: riskStatus === "Aprobado",
+  };
+  p = setInputStatus(p, "registro-interesados", stkStatus);
+  p = setInputStatus(p, "registro-riesgos", riskStatus);
   const inicio = calcInicioProgress(p);
 
   return {
@@ -51,6 +85,9 @@ function recompute(input: Project): Project {
   };
 }
 
+/** Una línea base guardada con el cuestionario queda aprobada y reemplaza un archivo previo. */
+const asQuestionnaire: Partial<MandatoryInput> = { source: "cuestionario", file_name: undefined, status: "Aprobado" };
+
 interface ProjectStore {
   project: Project | null;
   hydrated: boolean;
@@ -61,6 +98,14 @@ interface ProjectStore {
   saveStakeholder: (s: Stakeholder) => void;
   removeStakeholder: (id: string) => void;
   approveStakeholderRegister: () => void;
+  /** Omite el cuestionario adjuntando el documento (obligatorio para omitir). */
+  attachFile: (q: QuestionnaireId, fileName: string) => void;
+  saveScope: (scope: ScopeBaseline) => void;
+  saveSchedule: (schedule: ScheduleBaseline) => void;
+  saveCosts: (costs: CostBaseline) => void;
+  saveRisk: (r: Risk) => void;
+  removeRisk: (id: string) => void;
+  approveRiskRegister: () => void;
   advancePhase: () => void;
   reset: () => void;
 }
@@ -103,7 +148,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   );
 
   const submitActa = useCallback(
-    (data: ActaFormData) => mutate((p) => setInputStatus({ ...p, acta: data }, "acta-constitucion", "Pendiente de Firma")),
+    (data: ActaFormData) =>
+      mutate((p) =>
+        patchInput({ ...p, acta: data }, "acta-constitucion", { source: "cuestionario", file_name: undefined, status: "Pendiente de Firma" }),
+      ),
     [mutate],
   );
 
@@ -114,7 +162,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       mutate((p) => {
         const exists = p.stakeholders.some((x) => x.stakeholder_id === s.stakeholder_id);
         return {
-          ...p,
+          ...patchInput(p, "registro-interesados", { source: "cuestionario", file_name: undefined }),
           stakeholders: exists
             ? p.stakeholders.map((x) => (x.stakeholder_id === s.stakeholder_id ? s : x))
             : [...p.stakeholders, s],
@@ -132,6 +180,49 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     () => mutate((p) => ({ ...p, stakeholder_register_approved: true })),
     [mutate],
   );
+
+  const attachFile = useCallback(
+    (q: QuestionnaireId, fileName: string) =>
+      mutate((p) =>
+        patchInput(p, q, {
+          source: "archivo",
+          file_name: fileName,
+          // El Acta cargada sigue requiriendo la confirmación de firma del Patrocinador.
+          status: q === "acta-constitucion" ? "Pendiente de Firma" : "Aprobado",
+        }),
+      ),
+    [mutate],
+  );
+
+  const saveScope = useCallback(
+    (scope: ScopeBaseline) => mutate((p) => patchInput({ ...p, scope }, "linea-base-alcance", asQuestionnaire)),
+    [mutate],
+  );
+  const saveSchedule = useCallback(
+    (schedule: ScheduleBaseline) => mutate((p) => patchInput({ ...p, schedule }, "linea-base-cronograma", asQuestionnaire)),
+    [mutate],
+  );
+  const saveCosts = useCallback(
+    (costs: CostBaseline) => mutate((p) => patchInput({ ...p, costs }, "linea-base-costos", asQuestionnaire)),
+    [mutate],
+  );
+
+  const saveRisk = useCallback(
+    (r: Risk) =>
+      mutate((p) => {
+        const exists = p.risks.some((x) => x.risk_id === r.risk_id);
+        return {
+          ...patchInput(p, "registro-riesgos", { source: "cuestionario", file_name: undefined }),
+          risks: exists ? p.risks.map((x) => (x.risk_id === r.risk_id ? r : x)) : [...p.risks, r],
+        };
+      }),
+    [mutate],
+  );
+  const removeRisk = useCallback(
+    (id: string) => mutate((p) => ({ ...p, risks: p.risks.filter((x) => x.risk_id !== id) })),
+    [mutate],
+  );
+  const approveRiskRegister = useCallback(() => mutate((p) => ({ ...p, risk_register_approved: true })), [mutate]);
 
   const advancePhase = useCallback(
     () =>
@@ -171,10 +262,36 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       saveStakeholder,
       removeStakeholder,
       approveStakeholderRegister,
+      attachFile,
+      saveScope,
+      saveSchedule,
+      saveCosts,
+      saveRisk,
+      removeRisk,
+      approveRiskRegister,
       advancePhase,
       reset,
     }),
-    [project, hydrated, create, setApproach, submitActa, signActa, saveStakeholder, removeStakeholder, approveStakeholderRegister, advancePhase, reset],
+    [
+      project,
+      hydrated,
+      create,
+      setApproach,
+      submitActa,
+      signActa,
+      saveStakeholder,
+      removeStakeholder,
+      approveStakeholderRegister,
+      attachFile,
+      saveScope,
+      saveSchedule,
+      saveCosts,
+      saveRisk,
+      removeRisk,
+      approveRiskRegister,
+      advancePhase,
+      reset,
+    ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

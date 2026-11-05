@@ -4,10 +4,19 @@ import { ArrowLeft } from "lucide-react";
 import { QUESTIONNAIRES } from "@/lib/questionnaires";
 import type { QuestionnaireId } from "@/lib/types";
 
+const OWN_PAGE = [
+  "acta-constitucion",
+  "registro-interesados",
+  "linea-base-alcance",
+  "linea-base-cronograma",
+  "registro-riesgos",
+  "linea-base-costos",
+];
+
 export function generateStaticParams() {
-  // El Acta tiene su propia ruta con el flujo completo.
+  // Los cuestionarios construidos tienen su propia ruta.
   return Object.keys(QUESTIONNAIRES)
-    .filter((id) => id !== "acta-constitucion" && id !== "registro-interesados")
+    .filter((id) => !OWN_PAGE.includes(id))
     .map((id) => ({ id }));
 }
 

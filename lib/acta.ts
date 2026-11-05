@@ -65,8 +65,11 @@ export function actaCompletionRatio(d: ActaFormData | undefined): number {
  * Campos del Acta completados (70%) + Interesados identificados (30%).
  */
 export function calcInicioProgress(project: Project): number {
-  const acta = actaCompletionRatio(project.acta) * 70;
-  const stakeholders = stakeholdersRatio(project.stakeholders) * 30;
+  const inputs = project.phases.flatMap((p) => p.mandatory_inputs);
+  const fromFile = (q: string) => inputs.find((i) => i.questionnaire === q)?.source === "archivo";
+  // Un insumo cargado como archivo cuenta como completo.
+  const acta = (fromFile("acta-constitucion") ? 1 : actaCompletionRatio(project.acta)) * 70;
+  const stakeholders = (fromFile("registro-interesados") ? 1 : stakeholdersRatio(project.stakeholders)) * 30;
   return Math.round(acta + stakeholders);
 }
 
