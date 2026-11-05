@@ -3,6 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { calcInicioProgress } from "./acta";
 import { canAdvance } from "./assistant";
+import { appendAudit } from "./audit";
+import { lockInfo } from "./locks";
+import { coverage, isRequirementDefined } from "./rtm";
 import { createProject, normalizeProject } from "./project-factory";
 import { closureStats, closureOf, isAdminClosed, isContractClosed } from "./closure";
 import { isCrOpen } from "./control";
@@ -29,6 +32,8 @@ import type {
   PerformanceReport,
   QuestionnaireId,
   ResourcePlan,
+  GovernanceThresholds,
+  Requirement,
   Risk,
   WpProgress,
   ScheduleBaseline,
@@ -97,6 +102,10 @@ function recompute(input: Project): Project {
   const lessonsOpen = p.lessons.some(isLessonComplete);
   p = setInputStatus(p, "lecciones-aprendidas", registerStatus(p, "lecciones-aprendidas", lessonsOpen ? 1 : 0, true, lessonsOpen));
   p = setInputStatus(p, "informe-desempeno", registerStatus(p, "informe-desempeno", p.reports.length, true, true));
+  // RTM: aprobada solo con cobertura bidireccional completa.
+  const rtmOk = !!p.rtm_approved && p.requirements.every(isRequirementDefined) && coverage(p).complete;
+  p = { ...p, rtm_approved: findInput(p, "matriz-trazabilidad")?.source === "archivo" ? p.rtm_approved : rtmOk };
+  p = patchStatusUnlessFile(p, "matriz-trazabilidad", rtmOk ? "Aprobado" : p.requirements.length ? "En Progreso" : "No Iniciado");
   // Control
   const evmOk = p.reports.length > 0 && !requiredReportPeriod(p);
   p = patchStatusUnlessFile(p, "registro-evm", evmOk ? "Aprobado" : p.reports.length ? "En Progreso" : "No Iniciado");
@@ -142,6 +151,12 @@ function recompute(input: Project): Project {
 /** Una línea base guardada con el cuestionario queda aprobada y reemplaza un archivo previo. */
 const asQuestionnaire: Partial<MandatoryInput> = { source: "cuestionario", file_name: undefined, status: "Aprobado" };
 
+/** Aprueba una línea base (si no está congelada) y deja constancia en la bitácora. */
+function approveBaseline(p: Project, q: QuestionnaireId, patch: Partial<Project>): Project {
+  if (lockInfo(p, q).locked) return p;
+  return appendAudit(patchInput({ ...p, ...patch }, q, asQuestionnaire), "Línea base aprobada", "Línea base", q);
+}
+
 interface ProjectStore {
   project: Project | null;
   hydrated: boolean;
@@ -177,7 +192,12 @@ interface ProjectStore {
   setPmAuthorityLimit: (l: { amount: string; days: string }) => void;
   /** Cambio aprobado que modifica líneas base: retrocede a Planificación (Replanificación). */
   startReplanning: (crId: string, baselines: BaselineId[]) => void;
-  saveClosure: (patch: Partial<Closure>) => void;
+  saveClosure: (patch: Partial<Closure>, audit?: [string, string, string, string?]) => void;
+  saveRequirement: (r: Requirement) => void;
+  removeRequirement: (id: string) => void;
+  approveRtm: () => void;
+  setGovernanceThresholds: (t: GovernanceThresholds) => void;
+  setBacReference: (v: string) => void;
   closeProject: () => void;
   saveChangeReadiness: (c: ChangeReadiness) => void;
   saveMeeting: (m: Meeting) => void;
@@ -216,22 +236,39 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setProject((p) => (p ? recompute(fn(p)) : p));
   }, []);
 
-  const create = useCallback((client: string, name: string) => setProject(recompute(createProject(client, name))), []);
+  const create = useCallback(
+    (client: string, name: string) => {
+      const p = createProject(client, name);
+      setProject(recompute(appendAudit(p, "Proyecto creado", "Proyecto", p.project_id, `${p.client_name} · ${p.project_name}`)));
+    },
+    [],
+  );
 
   const setApproach = useCallback(
-    (approach: Approach, first_input: FirstInput) => mutate((p) => ({ ...p, approach, first_input })),
+    (approach: Approach, first_input: FirstInput) =>
+      mutate((p) => appendAudit({ ...p, approach, first_input }, "Enfoque detectado", "Enfoque", approach.type, `${first_input.file_name} → ${approach.detected_from}`)),
     [mutate],
   );
 
   const submitActa = useCallback(
     (data: ActaFormData) =>
       mutate((p) =>
-        patchInput({ ...p, acta: data }, "acta-constitucion", { source: "cuestionario", file_name: undefined, status: "Pendiente de Firma" }),
+        lockInfo(p, "acta-constitucion").locked
+          ? p
+          : appendAudit(
+              patchInput({ ...p, acta: data }, "acta-constitucion", { source: "cuestionario", file_name: undefined, status: "Pendiente de Firma" }),
+              "Borrador generado",
+              "Acta de Constitución",
+              "acta-constitucion",
+            ),
       ),
     [mutate],
   );
 
-  const signActa = useCallback(() => mutate((p) => setInputStatus(p, "acta-constitucion", "Aprobado")), [mutate]);
+  const signActa = useCallback(
+    () => mutate((p) => appendAudit(setInputStatus(p, "acta-constitucion", "Aprobado"), "Firma del Patrocinador registrada", "Acta de Constitución", "acta-constitucion")),
+    [mutate],
+  );
 
   const saveStakeholder = useCallback(
     (s: Stakeholder) =>
@@ -253,33 +290,41 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   );
 
   const approveStakeholderRegister = useCallback(
-    () => mutate((p) => ({ ...p, stakeholder_register_approved: true })),
+    () => mutate((p) => appendAudit({ ...p, stakeholder_register_approved: true }, "Registro aprobado", "Registro de Interesados", "registro-interesados")),
     [mutate],
   );
 
   const attachFile = useCallback(
     (q: QuestionnaireId, fileName: string) =>
       mutate((p) =>
-        patchInput(p, q, {
-          source: "archivo",
-          file_name: fileName,
-          // El Acta cargada sigue requiriendo la confirmación de firma del Patrocinador.
-          status: q === "acta-constitucion" ? "Pendiente de Firma" : "Aprobado",
-        }),
+        lockInfo(p, q).locked
+          ? p
+          : appendAudit(
+              patchInput(p, q, {
+                source: "archivo",
+                file_name: fileName,
+                // El Acta cargada sigue requiriendo la confirmación de firma del Patrocinador.
+                status: q === "acta-constitucion" ? "Pendiente de Firma" : "Aprobado",
+              }),
+              "Cuestionario omitido con documento",
+              "Insumo",
+              q,
+              fileName,
+            ),
       ),
     [mutate],
   );
 
   const saveScope = useCallback(
-    (scope: ScopeBaseline) => mutate((p) => patchInput({ ...p, scope }, "linea-base-alcance", asQuestionnaire)),
+    (scope: ScopeBaseline) => mutate((p) => approveBaseline(p, "linea-base-alcance", { scope })),
     [mutate],
   );
   const saveSchedule = useCallback(
-    (schedule: ScheduleBaseline) => mutate((p) => patchInput({ ...p, schedule }, "linea-base-cronograma", asQuestionnaire)),
+    (schedule: ScheduleBaseline) => mutate((p) => approveBaseline(p, "linea-base-cronograma", { schedule })),
     [mutate],
   );
   const saveCosts = useCallback(
-    (costs: CostBaseline) => mutate((p) => patchInput({ ...p, costs }, "linea-base-costos", asQuestionnaire)),
+    (costs: CostBaseline) => mutate((p) => approveBaseline(p, "linea-base-costos", { costs })),
     [mutate],
   );
 
@@ -298,7 +343,46 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     (id: string) => mutate((p) => ({ ...p, risks: p.risks.filter((x) => x.risk_id !== id) })),
     [mutate],
   );
-  const approveRiskRegister = useCallback(() => mutate((p) => ({ ...p, risk_register_approved: true })), [mutate]);
+  const approveRiskRegister = useCallback(
+    () => mutate((p) => appendAudit({ ...p, risk_register_approved: true }, "Registro aprobado", "Registro de Riesgos", "registro-riesgos")),
+    [mutate],
+  );
+  const saveRequirement = useCallback(
+    (r: Requirement) =>
+      mutate((p) =>
+        lockInfo(p, "matriz-trazabilidad").locked
+          ? p
+          : { ...patchInput(p, "matriz-trazabilidad", { source: "cuestionario", file_name: undefined }), requirements: upsert(p.requirements, r, (x) => x.id) },
+      ),
+    [mutate],
+  );
+  const removeRequirement = useCallback(
+    (id: string) =>
+      mutate((p) =>
+        // Un requisito regulatorio o legal es innegociable: no se elimina.
+        lockInfo(p, "matriz-trazabilidad").locked || p.requirements.find((x) => x.id === id)?.regulatory
+          ? p
+          : { ...p, requirements: p.requirements.filter((x) => x.id !== id) },
+      ),
+    [mutate],
+  );
+  const approveRtm = useCallback(
+    () =>
+      mutate((p) =>
+        coverage(p).complete && p.requirements.every(isRequirementDefined)
+          ? appendAudit({ ...p, rtm_approved: true }, "RTM aprobada (cobertura bidireccional completa)", "Línea base", "matriz-trazabilidad", `${p.requirements.length} requisitos`)
+          : p,
+      ),
+    [mutate],
+  );
+  const setGovernanceThresholds = useCallback(
+    (t: GovernanceThresholds) =>
+      mutate((p) =>
+        appendAudit({ ...p, governance_thresholds: t }, "Umbrales de gobernanza actualizados", "Gobernanza", "governance_thresholds", `Tolerancia ${t.cost_tolerance_percentage}% · Umbral ${t.cost_escalation_threshold_percentage}%`),
+      ),
+    [mutate],
+  );
+  const setBacReference = useCallback((v: string) => mutate((p) => appendAudit({ ...p, bac_reference: v }, "BAC de referencia registrado", "Gobernanza", "bac_reference", v)), [mutate]);
 
   const upsert = <T,>(list: T[], item: T, key: (x: T) => string) =>
     list.some((x) => key(x) === key(item)) ? list.map((x) => (key(x) === key(item) ? item : x)) : [...list, item];
@@ -313,19 +397,36 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   );
   const removeLesson = useCallback((id: string) => mutate((p) => ({ ...p, lessons: p.lessons.filter((x) => x.id !== id) })), [mutate]);
   const saveResources = useCallback(
-    (resources: ResourcePlan) => mutate((p) => patchInput({ ...p, resources }, "asignacion-recursos", asQuestionnaire)),
+    (resources: ResourcePlan) =>
+      mutate((p) => appendAudit(patchInput({ ...p, resources }, "asignacion-recursos", asQuestionnaire), "Asignación formalizada", "Asignación de Recursos", "asignacion-recursos", `Acordado con ${resources.agreed_with}`)),
     [mutate],
   );
   const setWpProgress = useCallback(
-    (id: string, progress: WpProgress) => mutate((p) => ({ ...p, wp_progress: { ...p.wp_progress, [id]: progress } })),
+    (id: string, progress: WpProgress) =>
+      mutate((p) => {
+        if (p.closure?.closed_at) return p;
+        const stamped = progress.status === "Completado" ? { ...progress, qc_recorded_at: new Date().toISOString() } : progress;
+        const next = { ...p, wp_progress: { ...p.wp_progress, [id]: stamped } };
+        return progress.status === "Completado"
+          ? appendAudit(next, "Verificado por Control de Calidad", "Paquete de trabajo", id, `${progress.qc_verified_by} · fecha declarada ${progress.qc_date}`)
+          : next;
+      }),
     [mutate],
   );
   const publishReport = useCallback(
     (r: PerformanceReport) =>
-      mutate((p) => ({
-        ...patchInput(p, "informe-desempeno", { source: "cuestionario", file_name: undefined }),
-        reports: upsert(p.reports, r, (x) => x.id),
-      })),
+      mutate((p) =>
+        // Un informe publicado es inmutable: no se reescribe.
+        p.reports.some((x) => x.id === r.id)
+          ? p
+          : appendAudit(
+              { ...patchInput(p, "informe-desempeno", { source: "cuestionario", file_name: undefined }), reports: [...p.reports, r] },
+              "Informe publicado",
+              "Informe de Desempeño",
+              r.id,
+              `Periodo ${r.period} · PV ${r.pv} · EV ${r.ev} · AC ${r.ac}`,
+            ),
+      ),
     [mutate],
   );
   const saveImpediment = useCallback(
@@ -343,20 +444,32 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   const saveIncident = useCallback(
     (i: Incident) =>
-      mutate((p) => ({
-        ...patchInput(p, "registro-incidentes", { source: "cuestionario", file_name: undefined }),
-        incidents: upsert(p.incidents, i, (x) => x.id),
-      })),
+      mutate((p) => {
+        const prev = p.incidents.find((x) => x.id === i.id);
+        const next = { ...patchInput(p, "registro-incidentes", { source: "cuestionario", file_name: undefined }), incidents: upsert(p.incidents, i, (x) => x.id) };
+        return i.status === "Resuelto" && prev?.status !== "Resuelto"
+          ? appendAudit(next, "Incidente resuelto", "Incidente", i.id, i.resolution)
+          : next;
+      }),
     [mutate],
   );
   const removeIncident = useCallback((id: string) => mutate((p) => ({ ...p, incidents: p.incidents.filter((x) => x.id !== id) })), [mutate]);
   const reviewIncidentRegister = useCallback(() => mutate((p) => ({ ...p, incident_register_reviewed: true })), [mutate]);
   const saveChangeRequest = useCallback(
     (cr: ChangeRequest) =>
-      mutate((p) => ({
-        ...patchInput(p, "solicitud-cambio", { source: "cuestionario", file_name: undefined }),
-        change_requests: upsert(p.change_requests, cr, (x) => x.id),
-      })),
+      mutate((p) => {
+        const prev = p.change_requests.find((x) => x.id === cr.id);
+        // Una decisión registrada no se reescribe (sello de tiempo del sistema).
+        if (prev?.decided_at && (prev.decision !== cr.decision || prev.decision_date !== cr.decision_date)) return p;
+        const decidedNow = !!cr.decision && !prev?.decided_at && cr.status !== "En análisis" && cr.status !== "Pendiente de decisión";
+        const stamped = decidedNow ? { ...cr, decided_at: new Date().toISOString() } : cr;
+        const next = { ...patchInput(p, "solicitud-cambio", { source: "cuestionario", file_name: undefined }), change_requests: upsert(p.change_requests, stamped, (x) => x.id) };
+        if (decidedNow)
+          return appendAudit(next, `Cambio ${cr.decision.toLowerCase()} (${cr.route === "PM" ? "PM" : "CCB / Gobernanza"})`, "Solicitud de Cambio", cr.id, `Fecha declarada ${cr.decision_date} · ${cr.governance ? `${cr.governance.cost_deviation_pct}% del BAC · ${cr.governance.band}` : ""}`);
+        if (cr.status === "Resuelto sin cambio de línea base" && prev?.status !== cr.status)
+          return appendAudit(next, "Resuelto sin cambio de línea base", "Solicitud de Cambio", cr.id, cr.alternative_detail);
+        return next;
+      }),
     [mutate],
   );
   const removeChangeRequest = useCallback(
@@ -381,12 +494,19 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
           ),
         };
         for (const b of baselines) next = setInputStatus(next, b, "En Progreso");
-        return next;
+        // Si cambia el alcance, la RTM debe volver a trazarse.
+        if (baselines.includes("linea-base-alcance")) next = { ...next, rtm_approved: false };
+        return appendAudit(next, "Retroceso a Planificación (Replanificación)", "Solicitud de Cambio", crId, baselines.join(", "));
       }),
     [mutate],
   );
   const saveClosure = useCallback(
-    (patch: Partial<Closure>) => mutate((p) => ({ ...p, closure: { ...closureOf(p), ...patch } })),
+    (patch: Partial<Closure>, audit?: [string, string, string, string?]) =>
+      mutate((p) => {
+        if (p.closure?.closed_at) return p;
+        const next = { ...p, closure: { ...closureOf(p), ...patch } };
+        return audit ? appendAudit(next, audit[0], audit[1], audit[2], audit[3] ?? "") : next;
+      }),
     [mutate],
   );
   const closeProject = useCallback(
@@ -394,11 +514,16 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       mutate((p) => {
         const ph = p.phases.find((x) => x.id === "cierre");
         if (p.current_phase !== "cierre" || !ph || !ph.mandatory_inputs.every((i) => i.status === "Aprobado")) return p;
-        return {
-          ...p,
-          closure: { ...closureOf(p), closed_at: new Date().toISOString() },
-          phases: p.phases.map((x) => (x.id === "cierre" ? { ...x, status: "Completada" } : x)),
-        };
+        return appendAudit(
+          {
+            ...p,
+            closure: { ...closureOf(p), closed_at: new Date().toISOString() },
+            phases: p.phases.map((x) => (x.id === "cierre" ? { ...x, status: "Completada" } : x)),
+          },
+          "Proyecto cerrado",
+          "Proyecto",
+          p.project_id,
+        );
       }),
     [mutate],
   );
@@ -414,26 +539,26 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         if (p.replanning && p.current_phase === "planificacion") {
           const planIdx = p.phases.findIndex((x) => x.id === "planificacion");
           const resumeIdx = p.phases.findIndex((x) => x.id === p.replanning!.resume_phase);
-          return {
+          return appendAudit({
             ...p,
             replanning: undefined,
             current_phase: p.replanning.resume_phase,
             phases: p.phases.map((ph, i) =>
               i >= planIdx && i < resumeIdx ? { ...ph, status: "Completada" } : i === resumeIdx ? { ...ph, status: "En Progreso" } : ph,
             ),
-          };
+          }, "Plan actualizado aprobado; fin de la replanificación", "Fase", "planificacion");
         }
         const idx = p.phases.findIndex((x) => x.id === p.current_phase);
         const next = p.phases[idx + 1];
         if (!next) return p;
-        return {
+        return appendAudit({
           ...p,
           execution_started_at: next.id === "ejecucion" ? new Date().toISOString() : p.execution_started_at,
           current_phase: next.id,
           phases: p.phases.map((ph, i) =>
             i === idx ? { ...ph, status: "Completada" } : i === idx + 1 ? { ...ph, status: "En Progreso" } : ph,
           ),
-        };
+        }, `Fase completada y aprobada (${p.phases[idx].phase_name} → ${next.phase_name})`, "Fase", p.phases[idx].id);
       }),
     [mutate],
   );
@@ -486,6 +611,11 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       saveChangeReadiness,
       saveMeeting,
       removeMeeting,
+      saveRequirement,
+      removeRequirement,
+      approveRtm,
+      setGovernanceThresholds,
+      setBacReference,
       advancePhase,
       reset,
     }),
@@ -527,6 +657,11 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       saveChangeReadiness,
       saveMeeting,
       removeMeeting,
+      saveRequirement,
+      removeRequirement,
+      approveRtm,
+      setGovernanceThresholds,
+      setBacReference,
       advancePhase,
       reset,
     ],

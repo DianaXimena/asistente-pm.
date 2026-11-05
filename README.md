@@ -41,12 +41,31 @@ npm run dev
 
 Cada cuestionario puede **omitirse solo si se adjunta el documento** correspondiente.
 
+## Cumplimiento de auditoría (6 hallazgos)
+
+1. **Trazabilidad (RTM bidireccional)** — `/cuestionario/matriz-trazabilidad`: requisitos `RTM-REQ-###` con origen,
+   objetivo de negocio, prioridad, criterio de aceptación y carácter regulatorio. Vínculo requisito → paquete de
+   trabajo y paquete → requisito → objetivo. Solo se aprueba sin requisitos sin cubrir ni trabajo no solicitado.
+2. **Integridad de datos** — sellos de tiempo del sistema en cada aprobación, bitácora solo-agregar con huellas
+   encadenadas (`/auditoria`, exportable a JSON), fechas no futuras ni anteriores al evento que las habilita y
+   líneas base congeladas tras aprobarse (solo cambian por Solicitud de Cambio). Mientras los datos estén en el
+   navegador, la bitácora detecta alteraciones; la inmutabilidad real requiere un servidor.
+3. **Gobernanza** — costo como % del BAC: tolerancia operativa (5%) y umbral de escalamiento (10%), configurables.
+   Aplica a Solicitudes de Cambio y al CV% del informe EVM. El cronograma conserva el límite en días del PM.
+4. **Regulatorio y legal** — escalamiento obligatorio, sin alternativas, sin rechazo ni diferimiento del CCB y
+   ajuste de línea base obligatorio. Los requisitos regulatorios no se eliminan.
+5. **Verificado vs. aceptado** — la aceptación exige verificación de Control de Calidad previa, fecha posterior a
+   ella, validación del criterio de cada requisito trazado (`rtm_id_link`) y queda sellada e inmutable.
+6. **Conocimiento** — cada lección se clasifica como explícita (repositorio OPA) o tácita (quién la posee, quién la
+   recibe, método y fecha de transferencia).
+
 ## Estructura
 
 - `lib/types.ts` — modelo de datos.
 - `lib/approach.ts` — algoritmo de detección de enfoque.
-- `lib/acta.ts`, `lib/stakeholders.ts`, `lib/planning.ts`, `lib/execution.ts`, `lib/control.ts`, `lib/closure.ts` — validaciones y reglas de cada cuestionario.
+- `lib/acta.ts`, `lib/stakeholders.ts`, `lib/planning.ts`, `lib/execution.ts`, `lib/control.ts`, `lib/closure.ts`, `lib/rtm.ts`, `lib/governance.ts` — validaciones y reglas de cada cuestionario.
 - `lib/assistant.ts` — motor del asistente: mensaje, acción sugerida y alertas proactivas.
+- `lib/audit.ts`, `lib/locks.ts`, `lib/audit-report.ts` — bitácora encadenada, bloqueos y exportación de auditoría.
 - `lib/store.tsx` — estado del proyecto y recálculo de progreso (guardado provisional en el navegador).
 - `components/` — Dashboard, stepper de fases, tarjeta del Asistente y pantallas de cada flujo.
 

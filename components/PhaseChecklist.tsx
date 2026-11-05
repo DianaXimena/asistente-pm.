@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRight, Lock, Paperclip } from "lucide-react";
-import { inputSemaforo, missingRequirements } from "@/lib/assistant";
+import { inputSemaforo, isWaiting, missingRequirements } from "@/lib/assistant";
 import { QUESTIONNAIRES } from "@/lib/questionnaires";
 import type { Phase, Project } from "@/lib/types";
 import { SemaforoDot, SemaforoLegend } from "./Semaforo";
@@ -33,6 +33,11 @@ export function PhaseChecklist({ project, phase, isCurrent }: { project: Project
                 {input.source === "archivo" && input.file_name && (
                   <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-kruger-dark/55">
                     <Paperclip className="h-3 w-3 shrink-0" /> {input.file_name}
+                  </span>
+                )}
+                {isWaiting(project, input) && (
+                  <span className="mt-0.5 flex items-center gap-1 text-xs text-kruger-dark/55">
+                    <Lock className="h-3 w-3 shrink-0" /> Requisitos registrados · la trazabilidad se completa tras aprobar el Alcance
                   </span>
                 )}
                 {input.status !== "Aprobado" && missing.length > 0 && (

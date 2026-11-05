@@ -1,3 +1,5 @@
+import { approvalDateError } from "./audit";
+import { crGovernance } from "./governance";
 import { contingencyFromRisks, costSummary, num, riskInputSource, uid } from "./planning";
 import type { BaselineId, ChangeImpact, ChangeRequest, Incident, Project, Risk } from "./types";
 
@@ -102,19 +104,33 @@ export function impactDimensions(i: ChangeImpact) {
   ];
 }
 
+export const REGULATORY_MESSAGE =
+  "Requisito regulatorio o legal: no se negocia, el CCB no puede rechazarlo ni diferirlo y no admite alternativas que eviten el ajuste. Acción obligatoria: ajustar la línea base y escalar formalmente.";
+
 /**
- * Enrutamiento de gobernanza: dentro de la autoridad del PM decide el PM;
- * si supera el umbral de costo o de días, o es regulatorio, va a CCB / gobernanza.
+ * Enrutamiento de gobernanza (hallazgos 3 y 4):
+ * - Regulatorio/legal → escalamiento obligatorio a CCB / gobernanza.
+ * - Costo como % del BAC: dentro de la tolerancia decide el PM; sobre la tolerancia decide el PM
+ *   e informa al Patrocinador; sobre el umbral de escalamiento, escalamiento obligatorio.
+ * - Cronograma: se mantiene el límite de días de la autoridad delegada del PM.
  */
-export function routeFor(cr: ChangeRequest, p: Project): { route: "PM" | "CCB"; reason: string } | null {
-  const lim = p.pm_authority_limit;
-  if (cr.regulatory) return { route: "CCB", reason: "Cumplimiento regulatorio: se escala formalmente para ajustar los parámetros del proyecto." };
-  if (!lim || !filled(lim.amount) || !filled(lim.days)) return null;
-  const overCost = num(cr.impact.cost_amount) > num(lim.amount);
-  const overDays = num(cr.impact.schedule_days) > num(lim.days);
-  if (overCost || overDays)
-    return { route: "CCB", reason: `Supera la autoridad del PM (${overCost ? "costo" : ""}${overCost && overDays ? " y " : ""}${overDays ? "días" : ""}).` };
-  return { route: "PM", reason: "Dentro de la autoridad delegada del PM." };
+export function routeFor(cr: ChangeRequest, p: Project): { route: "PM" | "CCB"; reason: string; escalation_mandatory: boolean } | null {
+  if (cr.regulatory) return { route: "CCB", reason: "Requisito regulatorio o legal: escalamiento formal obligatorio.", escalation_mandatory: true };
+  const gov = crGovernance(cr, p);
+  const days = p.pm_authority_limit?.days ?? "";
+  if (!gov || !filled(days)) return null;
+  if (gov.escalation_mandatory)
+    return { route: "CCB", reason: `El costo equivale al ${gov.cost_deviation_pct}% del BAC: supera el umbral de escalamiento.`, escalation_mandatory: true };
+  if (num(cr.impact.schedule_days) > num(days))
+    return { route: "CCB", reason: `El impacto de ${cr.impact.schedule_days} días supera el límite de ${days} días del PM.`, escalation_mandatory: true };
+  return {
+    route: "PM",
+    reason:
+      gov.band === "Sobre tolerancia"
+        ? `El costo equivale al ${gov.cost_deviation_pct}% del BAC: sobre la tolerancia, decide el PM e informa al Patrocinador.`
+        : `El costo equivale al ${gov.cost_deviation_pct}% del BAC: dentro de la tolerancia operativa del PM.`,
+    escalation_mandatory: false,
+  };
 }
 
 export const BASELINE_LABEL: Record<BaselineId, string> = {
@@ -132,15 +148,19 @@ export function isCrStepValid(step: number, cr: ChangeRequest, p: Project): bool
     case 3:
       return filled(cr.consulted) && filled(cr.conversation);
     case 4:
+      if (cr.regulatory) return true;
       return cr.alternative_found === true ? filled(cr.alternative_detail) : cr.alternative_found === false && filled(cr.alternative_justification);
     case 5: {
       if (!routeFor(cr, p)) return false;
       if (!cr.decision || !filled(cr.decision_by) || !cr.decision_date) return false;
+      if (approvalDateError(cr.decision_date, { date: cr.created_at, label: "la creación de la solicitud" })) return false;
       if (cr.regulatory && cr.decision !== "Aprobada") return false;
+      if (!cr.regulatory && crGovernance(cr, p)?.band === "Sobre tolerancia" && routeFor(cr, p)?.route === "PM" && !cr.sponsor_informed) return false;
       return cr.decision !== "Rechazada" || filled(cr.decision_notes);
     }
     case 6:
-      return true;
+      // Regulatorio: el ajuste de la línea base es obligatorio.
+      return !cr.regulatory || cr.baselines_affected.length > 0;
     case 7:
       return cr.communicated;
     default:

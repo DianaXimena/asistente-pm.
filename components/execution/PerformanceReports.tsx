@@ -5,6 +5,8 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Copy, Download, LayoutDashboard, Mail, Plus, Send } from "lucide-react";
 import { formatDate } from "@/lib/acta";
+import { approvalDateError, todayIso } from "@/lib/audit";
+import { BAND_GUIDANCE, evmGovernance } from "@/lib/governance";
 import {
   baselineBac,
   evm,
@@ -126,10 +128,13 @@ function ReportWizard({ project, onCancel, onPublished }: { project: Project; on
   const health = evm(r);
   const recips = suggestedRecipients(project, health);
   const duplicate = project.reports.some((x) => x.period === r.period);
+  // Un informe solo reporta hechos ocurridos: la fecha de corte no puede ser futura.
+  const cutoffError = approvalDateError(r.cutoff_date);
+  const gov = evmGovernance(r, project);
 
   const valid =
     step === 1
-      ? !!r.period && !!r.cutoff_date && !duplicate
+      ? !!r.period && !!r.cutoff_date && !duplicate && !cutoffError
       : step === 2
         ? num(r.pv) > 0 && r.ev.trim() !== "" && num(r.ev) >= 0 && num(r.ac) > 0 && num(r.bac) > 0
         : step === 3
@@ -172,11 +177,14 @@ function ReportWizard({ project, onCancel, onPublished }: { project: Project; on
                 type="month"
                 className={inputClass}
                 value={r.period}
-                onChange={(e) => setR((x) => ({ ...x, period: e.target.value, cutoff_date: e.target.value ? lastDay(e.target.value) : "" }))}
+                max={todayIso().slice(0, 7)}
+                onChange={(e) =>
+                  setR((x) => ({ ...x, period: e.target.value, cutoff_date: e.target.value ? (lastDay(e.target.value) > todayIso() ? todayIso() : lastDay(e.target.value)) : "" }))
+                }
               />
             </Field>
-            <Field label="Fecha de corte" htmlFor="cutoff">
-              <input id="cutoff" type="date" className={inputClass} value={r.cutoff_date} onChange={(e) => set("cutoff_date", e.target.value)} />
+            <Field label="Fecha de corte" htmlFor="cutoff" error={cutoffError ?? undefined}>
+              <input id="cutoff" type="date" max={todayIso()} className={inputClass} value={r.cutoff_date} onChange={(e) => set("cutoff_date", e.target.value)} />
             </Field>
           </div>
           <ErrorText show={duplicate}>Ya existe un informe para este periodo.</ErrorText>
@@ -233,6 +241,7 @@ function ReportWizard({ project, onCancel, onPublished }: { project: Project; on
           <StepHeading step={4} total={TOTAL} subtitle="Diagnóstico automático" title="Así está la salud del proyecto" />
           <HealthCards h={health} />
           <p className="rounded-xl bg-kruger-gray-soft p-4 text-sm text-kruger-dark">{health.summary}</p>
+          {gov && <GovernanceNote pct={gov.cost_deviation_pct} band={gov.band} />}
           <p className={clsx("rounded-xl p-4 text-sm font-medium", health.color === "Rojo" ? "bg-semaforo-rojo/10 text-kruger-dark" : health.color === "Ámbar" ? "bg-semaforo-ambar/15 text-kruger-dark" : "bg-semaforo-verde/10 text-kruger-dark")}>
             {health.message}
           </p>
@@ -272,6 +281,20 @@ function ReportWizard({ project, onCancel, onPublished }: { project: Project; on
         </>
       )}
     </WizardFrame>
+  );
+}
+
+/** Hallazgo 3: banda de gobernanza del costo (tolerancia vs. umbral de escalamiento). */
+function GovernanceNote({ pct, band }: { pct: number; band: keyof typeof BAND_GUIDANCE }) {
+  return (
+    <p
+      className={clsx(
+        "rounded-xl p-3 text-sm text-kruger-dark",
+        band === "Sobre umbral de escalamiento" ? "bg-semaforo-rojo/10" : band === "Sobre tolerancia" ? "bg-semaforo-ambar/15" : "bg-semaforo-verde/10",
+      )}
+    >
+      <strong>Desviación de costo (CV%): {pct}% · {band}.</strong> {BAND_GUIDANCE[band]}
+    </p>
   );
 }
 
@@ -343,6 +366,7 @@ function ReportView({ project, report: r, onBack }: { project: Project; report: 
             <h3 className="text-sm font-semibold text-kruger-dark">Semáforo financiero</h3>
             <HealthCards h={h} />
             <p className="text-sm text-kruger-dark/80">{h.summary}</p>
+            {evmGovernance(r, project) && <GovernanceNote pct={evmGovernance(r, project)!.cost_deviation_pct} band={evmGovernance(r, project)!.band} />}
           </section>
         )}
         <section className="mt-5">

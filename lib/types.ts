@@ -11,6 +11,7 @@ export type InputStatus = "Aprobado" | "Pendiente de Firma" | "En Progreso" | "N
 
 /** Cuestionarios guiados por el asistente. */
 export type QuestionnaireId =
+  | "matriz-trazabilidad"
   | "acta-constitucion"
   | "registro-interesados"
   | "linea-base-alcance"
@@ -251,6 +252,8 @@ export interface WpProgress {
   /** Controlar la Calidad: inspección interna antes de marcar como completado. */
   qc_verified_by: string;
   qc_date: string;
+  /** Marca de tiempo del sistema al registrar la verificación. */
+  qc_recorded_at?: string;
 }
 
 export interface PerformanceReport {
@@ -363,6 +366,12 @@ export interface ChangeRequest {
   status: ChangeStatus;
   derived_from_incident_id?: string;
   created_at: string;
+  /** Desviación de costo (% del BAC) y banda de gobernanza calculadas al decidir. */
+  governance?: { cost_deviation_pct: number; band: GovernanceBand; escalation_mandatory: boolean };
+  /** Marca de tiempo del sistema al registrar la decisión. */
+  decided_at?: string;
+  /** Sobre tolerancia: el PM informó al Patrocinador. */
+  sponsor_informed?: boolean;
 }
 
 /* ---------- Cierre ---------- */
@@ -374,6 +383,10 @@ export interface DeliverableAcceptance {
   ops_owner: string;
   maintenance_plan: string;
   benefit_metrics: string;
+  /** Requisitos de la RTM cuyo criterio de aceptación validó el cliente. */
+  rtm_ids?: string[];
+  /** Marca de tiempo del sistema al registrar la aceptación. */
+  recorded_at?: string;
 }
 
 export interface Contract {
@@ -395,11 +408,69 @@ export interface Closure {
   docs_archived: boolean;
   resources_released: boolean;
   lesson_tags: Record<string, string>;
+  knowledge: Record<string, KnowledgeRecord>;
   opa_folder: string;
   retrospective_date: string;
   retrospective_participants: string;
   lessons_archived: boolean;
   closed_at?: string;
+}
+
+/* ---------- Auditoría (hallazgos 1, 2, 3 y 6) ---------- */
+
+export type Priority = "Alta" | "Media" | "Baja";
+
+/** Requisito de la Matriz de Trazabilidad de Requisitos (RTM). */
+export interface Requirement {
+  /** Identificador estable RTM-REQ-### */
+  id: string;
+  description: string;
+  /** Interesado que origina el requisito (trazabilidad hacia atrás). */
+  source: string;
+  /** Objetivo de negocio del Acta al que contribuye. */
+  objective: string;
+  priority: Priority | "";
+  acceptance_criterion: string;
+  /** Requisito regulatorio o legal: innegociable. */
+  regulatory: boolean;
+  /** Paquetes de trabajo que lo satisfacen (trazabilidad hacia adelante). */
+  work_package_ids: string[];
+  created_at: string;
+}
+
+/** Entrada de la bitácora de auditoría: solo se agrega, nunca se edita ni se borra. */
+export interface AuditEntry {
+  seq: number;
+  /** Marca de tiempo del sistema (no editable por el usuario). */
+  at: string;
+  action: string;
+  entity: string;
+  entity_id: string;
+  detail: string;
+  /** Huella encadenada con la entrada anterior para detectar alteraciones. */
+  hash: string;
+}
+
+export interface GovernanceThresholds {
+  /** Desviación de costo que el PM gestiona operativamente (sin escalar). */
+  cost_tolerance_percentage: number;
+  /** Desviación de costo a partir de la cual el escalamiento es obligatorio. */
+  cost_escalation_threshold_percentage: number;
+}
+
+export type GovernanceBand = "Dentro de tolerancia" | "Sobre tolerancia" | "Sobre umbral de escalamiento";
+
+export type KnowledgeType = "Explícito" | "Tácito";
+
+/** Clasificación de cada lección al archivarla. */
+export interface KnowledgeRecord {
+  type: KnowledgeType | "";
+  /** Tácito: quién posee el conocimiento. */
+  holder: string;
+  /** Tácito: quién lo recibe. */
+  receiver: string;
+  method: string;
+  date: string;
 }
 
 /* ---------- Transversales ---------- */
@@ -468,6 +539,12 @@ export interface Project {
   closure?: Closure;
   change_readiness?: ChangeReadiness;
   meetings: Meeting[];
+  requirements: Requirement[];
+  rtm_approved?: boolean;
+  audit_log: AuditEntry[];
+  governance_thresholds: GovernanceThresholds;
+  /** BAC de referencia si la Línea Base de Costos se cargó como archivo. */
+  bac_reference?: string;
 }
 
 /** Semáforo visual del motor de fases: Verde completo, Ámbar pendiente, Rojo bloqueante. */

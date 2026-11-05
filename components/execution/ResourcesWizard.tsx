@@ -3,6 +3,7 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { approvalDateError, todayIso } from "@/lib/audit";
 import { trackedItems } from "@/lib/execution";
 import { num, uid } from "@/lib/planning";
 import { useProject } from "@/lib/store";
@@ -45,13 +46,14 @@ function Wizard({ project }: { project: Project }) {
     setR((x) => ({ ...x, assignments: x.assignments.map((a, j) => (j === i ? { ...a, ...patch } : a)) }));
   const assignValid = (a: Assignment) => names.includes(a.accountable) && a.responsible.some((n) => names.includes(n));
 
+  const agreedError = approvalDateError(r.agreed_date, { date: project.created_at, label: "la creación del proyecto" });
   const valid =
     step === 1
       ? r.members.length > 0 && r.members.every(memberValid)
       : step === 2
         ? r.assignments.every(assignValid)
         : step === 3
-          ? r.agreed_with.trim().length > 0 && !!r.agreed_date
+          ? r.agreed_with.trim().length > 0 && !!r.agreed_date && !agreedError
           : true;
   const unassigned = r.members.filter((m) => !r.assignments.some((a) => a.accountable === m.name || a.responsible.includes(m.name)));
 
@@ -151,8 +153,8 @@ function Wizard({ project }: { project: Project }) {
           <Field label="Acordado con (gerente funcional, proveedor u otro)" htmlFor="agreed">
             <input id="agreed" autoFocus list="people" className={inputClass} value={r.agreed_with} onChange={(e) => setR((x) => ({ ...x, agreed_with: e.target.value }))} />
           </Field>
-          <Field label="Fecha del acuerdo" htmlFor="agreed_date">
-            <input id="agreed_date" type="date" className={clsx(inputClass, "sm:max-w-xs")} value={r.agreed_date} onChange={(e) => setR((x) => ({ ...x, agreed_date: e.target.value }))} />
+          <Field label="Fecha del acuerdo" htmlFor="agreed_date" error={agreedError ?? undefined}>
+            <input id="agreed_date" type="date" max={todayIso()} className={clsx(inputClass, "sm:max-w-xs")} value={r.agreed_date} onChange={(e) => setR((x) => ({ ...x, agreed_date: e.target.value }))} />
           </Field>
           <ErrorText show={touched && !valid}>Indica con quién y cuándo se formalizó.</ErrorText>
         </>

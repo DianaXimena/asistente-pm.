@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ClipboardList, FileUp, LayoutDashboard, Lock, SkipForward } from "lucide-react";
+import { CheckCircle2, ClipboardList, FilePlus2, FileUp, History, LayoutDashboard, Lock, ShieldCheck, SkipForward } from "lucide-react";
+import { lockInfo } from "@/lib/locks";
 import { missingRequirements } from "@/lib/assistant";
 import { QUESTIONNAIRES } from "@/lib/questionnaires";
 import { findInput, useProject } from "@/lib/store";
@@ -14,11 +15,38 @@ import { btnPrimary, btnSecondary, card } from "./ui";
  * Pantalla de entrada a cada cuestionario: permite llenarlo u omitirlo.
  * Omitir solo es posible si se adjunta el documento correspondiente.
  */
-export function QuestionnaireGate({ id, children }: { id: QuestionnaireId; children: (project: Project) => React.ReactNode }) {
-  return <RequireProject>{(p) => <Gate id={id} project={p}>{children}</Gate>}</RequireProject>;
+export function QuestionnaireGate({
+  id,
+  children,
+  readOnlyView,
+}: {
+  id: QuestionnaireId;
+  children: (project: Project) => React.ReactNode;
+  /** Vista de solo lectura cuando el insumo está congelado. */
+  readOnlyView?: (project: Project) => React.ReactNode;
+}) {
+  return (
+    <RequireProject>
+      {(p) => (
+        <Gate id={id} project={p} readOnlyView={readOnlyView}>
+          {children}
+        </Gate>
+      )}
+    </RequireProject>
+  );
 }
 
-function Gate({ id, project, children }: { id: QuestionnaireId; project: Project; children: (project: Project) => React.ReactNode }) {
+function Gate({
+  id,
+  project,
+  children,
+  readOnlyView,
+}: {
+  id: QuestionnaireId;
+  project: Project;
+  children: (project: Project) => React.ReactNode;
+  readOnlyView?: (project: Project) => React.ReactNode;
+}) {
   const { attachFile } = useProject();
   const input = findInput(project, id);
   const [mode, setMode] = useState<"auto" | "form" | "replace">("auto");
@@ -26,6 +54,43 @@ function Gate({ id, project, children }: { id: QuestionnaireId; project: Project
   const missing = input ? missingRequirements(project, input) : [];
 
   if (!input) return <>{children(project)}</>;
+
+  // Hallazgo 2: lo aprobado queda congelado; solo cambia por Control de Cambios.
+  const lock = lockInfo(project, id);
+  if (lock.locked) {
+    return (
+      <div className="space-y-6">
+        <div className={card}>
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-semaforo-verde" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-kruger-dark">{lock.reason}</p>
+              {lock.approvedAt && (
+                <p className="mt-1 text-xs text-kruger-dark/60">
+                  Sello del sistema: {new Date(lock.approvedAt).toLocaleString("es-EC", { dateStyle: "long", timeStyle: "medium" })}
+                </p>
+              )}
+              {input.source === "archivo" && <p className="mt-1 break-all text-xs text-kruger-dark/60">Documento: {input.file_name}</p>}
+            </div>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3 border-t border-kruger-gray/20 pt-6">
+            <Link href="/" className={btnPrimary}>
+              <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
+            </Link>
+            {lock.viaChange && (
+              <Link href="/cuestionario/solicitud-cambio" className={btnSecondary}>
+                <FilePlus2 className="h-4 w-4" /> Solicitar cambio
+              </Link>
+            )}
+            <Link href="/auditoria" className={btnSecondary}>
+              <History className="h-4 w-4" /> Ver bitácora de auditoría
+            </Link>
+          </div>
+        </div>
+        {readOnlyView?.(project)}
+      </div>
+    );
+  }
 
   // Completado con archivo: se muestra el resumen salvo que el PM decida reemplazarlo.
   if (input.source === "archivo" && mode === "auto") {

@@ -13,6 +13,7 @@ export const EMPTY_CLOSURE: Closure = {
   docs_archived: false,
   resources_released: false,
   lesson_tags: {},
+  knowledge: {},
   opa_folder: "",
   retrospective_date: "",
   retrospective_participants: "",

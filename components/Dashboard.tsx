@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, Briefcase, CalendarCheck, Compass, FileText, Gauge, KanbanSquare, PartyPopper, PenLine, RotateCcw } from "lucide-react";
+import { AlertTriangle, ArrowRight, Briefcase, CalendarCheck, Compass, FileText, Gauge, History, KanbanSquare, PartyPopper, PenLine, RotateCcw } from "lucide-react";
 import { APPROACH_LABEL, getAlerts, getAssistantMessage, getOverallProgress } from "@/lib/assistant";
 import { useProject } from "@/lib/store";
 import type { PhaseId, Project } from "@/lib/types";
@@ -63,6 +63,7 @@ function DashboardView({ project }: { project: Project }) {
               { href: "/ejecucion", label: "Tablero de Ejecución", icon: KanbanSquare },
               { href: "/reuniones", label: "Actas de reunión", icon: CalendarCheck },
               { href: "/disposicion-cambio", label: "Disposición al cambio", icon: Gauge },
+              { href: "/auditoria", label: "Bitácora de auditoría", icon: History },
             ].map(({ href, label, icon: Icon }) => (
               <li key={href}>
                 <Link href={href} className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-kruger-dark transition hover:bg-kruger-gray-soft">

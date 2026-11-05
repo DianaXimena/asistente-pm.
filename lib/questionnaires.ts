@@ -15,6 +15,15 @@ export interface QuestionnaireMeta {
 
 // Cuestionarios descritos en los documentos de diseño.
 export const QUESTIONNAIRES: Record<QuestionnaireId, QuestionnaireMeta> = {
+  "matriz-trazabilidad": {
+    id: "matriz-trazabilidad",
+    title: "Matriz de Trazabilidad de Requisitos (RTM)",
+    label: "Matriz de Trazabilidad de Requisitos",
+    prep: "de la",
+    href: "/cuestionario/matriz-trazabilidad",
+    hint: "Requisitos con origen y criterio de aceptación · vínculo bidireccional con la EDT",
+    description: "Registro de requisitos (origen, objetivo de negocio, prioridad, criterio de aceptación, carácter regulatorio) y su trazabilidad hacia adelante (requisito → paquete de trabajo) y hacia atrás (paquete → requisito).",
+  },
   "acta-constitucion": {
     id: "acta-constitucion",
     title: "Acta de Constitución",

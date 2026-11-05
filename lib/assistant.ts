@@ -1,5 +1,7 @@
 import { QUESTIONNAIRES } from "./questionnaires";
+import { verifyAuditChain } from "./audit";
 import { BASELINE_LABEL, REPLAN_MESSAGE, contingencyStatus, isCrOpen } from "./control";
+import { BAND_GUIDANCE, evmGovernance } from "./governance";
 import { RED_MESSAGE, evm, isOverdue, isRecurring, latestReport, requiredReportPeriod } from "./execution";
 import { engagementLabel, needsPriorityEngagement } from "./stakeholders";
 import type { ApproachType, InputStatus, MandatoryInput, Phase, PhaseStatus, Project, Semaforo } from "./types";
@@ -27,6 +29,16 @@ export function missingRequirements(project: Project, input: MandatoryInput): Ma
   return (input.requires ?? [])
     .map((q) => all.find((i) => i.questionnaire === q))
     .filter((i): i is MandatoryInput => !!i && i.status !== "Aprobado");
+}
+
+/**
+ * Insumo en espera: la RTM ya tiene requisitos, pero su trazabilidad necesita la EDT aprobada.
+ * El asistente pasa al siguiente insumo y vuelve a ella después.
+ */
+export function isWaiting(project: Project, input: MandatoryInput): boolean {
+  if (input.questionnaire !== "matriz-trazabilidad" || input.status === "Aprobado") return false;
+  const scope = project.phases.flatMap((p) => p.mandatory_inputs).find((i) => i.questionnaire === "linea-base-alcance");
+  return project.requirements.length > 0 && scope?.status !== "Aprobado";
 }
 
 /** Progreso global: promedio de las 5 fases con peso equitativo (20% cada una). */
@@ -102,7 +114,9 @@ export function getAssistantMessage(project: Project): AssistantMessage {
   const actionable = pending.filter((i) => i.status !== "Pendiente de Firma");
 
   // 2. Insumo con cuestionario guiado cuyas dependencias ya están aprobadas.
-  const withQ = actionable.find((i) => i.questionnaire && missingRequirements(project, i).length === 0);
+  const withQ =
+    actionable.find((i) => i.questionnaire && missingRequirements(project, i).length === 0 && !isWaiting(project, i)) ??
+    actionable.find((i) => i.questionnaire && missingRequirements(project, i).length === 0);
   if (withQ?.questionnaire) {
     const q = QUESTIONNAIRES[withQ.questionnaire];
     return {
@@ -170,6 +184,16 @@ export function getAssistantMessage(project: Project): AssistantMessage {
 /** Alertas proactivas visibles en el panel principal. */
 export function getAlerts(project: Project): AssistantAlert[] {
   const alerts: AssistantAlert[] = [];
+  const chain = verifyAuditChain(project.audit_log ?? []);
+  if (!chain.ok)
+    alerts.push({
+      id: "auditoria",
+      title: "Bitácora de auditoría alterada",
+      detail: `La cadena de integridad se rompe en la entrada #${chain.brokenAt}: los registros fueron modificados fuera del asistente.`,
+      href: "/auditoria",
+      linkLabel: "Ver bitácora",
+      severity: "rojo",
+    });
   // Proyecto cerrado: ya no hay alertas operativas.
   if (project.closure?.closed_at) return alerts;
   const acta = project.phases.flatMap((p) => p.mandatory_inputs).find((i) => i.questionnaire === "acta-constitucion");
@@ -242,6 +266,20 @@ export function getAlerts(project: Project): AssistantAlert[] {
   }
   const last = latestReport(project);
   const health = last ? evm(last) : null;
+  const gov = last ? evmGovernance(last, project) : null;
+  if (gov && gov.band !== "Dentro de tolerancia") {
+    alerts.push({
+      id: "gobernanza-costo",
+      title:
+        gov.band === "Sobre umbral de escalamiento"
+          ? `Escalamiento obligatorio: desviación de costo ${gov.cost_deviation_pct}% (umbral ${project.governance_thresholds.cost_escalation_threshold_percentage}%)`
+          : `Fuera de tolerancia: desviación de costo ${gov.cost_deviation_pct}% (tolerancia ${project.governance_thresholds.cost_tolerance_percentage}%)`,
+      detail: BAND_GUIDANCE[gov.band],
+      severity: gov.escalation_mandatory ? "rojo" : "ambar",
+      href: "/cuestionario/solicitud-cambio",
+      linkLabel: gov.escalation_mandatory ? "Escalar" : "Acción correctiva",
+    });
+  }
   if (health?.color === "Rojo") {
     alerts.push({ id: "evm-rojo", title: `Alerta Crítica: CPI ${health.cpi} · SPI ${health.spi}`, detail: RED_MESSAGE, severity: "rojo" });
   } else if (health?.color === "Ámbar") {

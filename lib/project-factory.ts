@@ -1,4 +1,7 @@
-import type { Phase, Project } from "./types";
+import type { GovernanceThresholds, Phase, Project } from "./types";
+
+/** Valores del checklist de auditoría (governance_thresholds). */
+export const DEFAULT_THRESHOLDS: GovernanceThresholds = { cost_tolerance_percentage: 5, cost_escalation_threshold_percentage: 10 };
 
 /** Plantilla de fases e insumos mínimos obligatorios (Motor de Fases). */
 export function initialPhases(): Phase[] {
@@ -19,6 +22,7 @@ export function initialPhases(): Phase[] {
       status: "No Iniciada",
       progress_percentage: 0,
       mandatory_inputs: [
+        { artifact_name: "Matriz de Trazabilidad de Requisitos (RTM)", status: "No Iniciado", questionnaire: "matriz-trazabilidad" },
         { artifact_name: "Línea Base del Alcance (EDT + Diccionario)", status: "No Iniciado", questionnaire: "linea-base-alcance" },
         {
           artifact_name: "Línea Base del Cronograma",
@@ -91,6 +95,9 @@ export function createProject(clientName: string, projectName: string): Project 
     incidents: [],
     change_requests: [],
     meetings: [],
+    requirements: [],
+    audit_log: [],
+    governance_thresholds: DEFAULT_THRESHOLDS,
   };
 }
 
@@ -110,6 +117,9 @@ export function normalizeProject(p: Project): Project {
     incidents: p.incidents ?? [],
     change_requests: p.change_requests ?? [],
     meetings: p.meetings ?? [],
+    requirements: p.requirements ?? [],
+    audit_log: p.audit_log ?? [],
+    governance_thresholds: p.governance_thresholds ?? DEFAULT_THRESHOLDS,
     phases: template.map((tph) => {
       const stored = p.phases.find((x) => x.id === tph.id);
       if (!stored) return tph;

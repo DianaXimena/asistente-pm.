@@ -5,6 +5,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { CalendarCheck, LayoutDashboard, MessageSquareQuote, Plus, Printer, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/acta";
+import { approvalDateError, todayIso } from "@/lib/audit";
 import { uid } from "@/lib/planning";
 import { useProject } from "@/lib/store";
 import type { ChangeReadiness, Meeting, MeetingTask, Project } from "@/lib/types";
@@ -108,7 +109,8 @@ function Meetings({ project }: { project: Project }) {
   const [m, setM] = useState<Meeting | null>(null);
   const [stage, setStage] = useState<"basic" | "prompt" | "acta">("basic");
   const [touched, setTouched] = useState(false);
-  const basicOk = !!m && !!m.date && m.title.trim() && m.attendees.trim();
+  const meetingDateError = m ? approvalDateError(m.date) : null;
+  const basicOk = !!m && !!m.date && !meetingDateError && m.title.trim() && m.attendees.trim();
   const actaOk = !!m && m.decisions.trim() && m.tasks.length > 0 && m.tasks.every((t) => t.task.trim() && t.owner.trim() && t.due);
 
   return (
@@ -130,8 +132,8 @@ function Meetings({ project }: { project: Project }) {
       {m && stage === "basic" && (
         <div className={clsx(card, "space-y-4")}>
           <div className="grid gap-4 sm:grid-cols-[12rem_1fr]">
-            <Field label="Fecha" htmlFor="mt-date">
-              <input id="mt-date" type="date" className={inputClass} value={m.date} onChange={(e) => setM({ ...m, date: e.target.value })} />
+            <Field label="Fecha" htmlFor="mt-date" error={meetingDateError ?? undefined}>
+              <input id="mt-date" type="date" max={todayIso()} className={inputClass} value={m.date} onChange={(e) => setM({ ...m, date: e.target.value })} />
             </Field>
             <Field label="Reunión" htmlFor="mt-title">
               <input id="mt-title" autoFocus className={inputClass} placeholder="Tema o tipo de reunión" value={m.title} onChange={(e) => setM({ ...m, title: e.target.value })} />

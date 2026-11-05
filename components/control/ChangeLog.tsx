@@ -5,9 +5,12 @@ import Link from "next/link";
 import clsx from "clsx";
 import { AlertTriangle, BookOpen, CheckCircle2, FileUp, LayoutDashboard, Mail, Pencil, Plus, Send } from "lucide-react";
 import { formatDate } from "@/lib/acta";
+import { approvalDateError, todayIso } from "@/lib/audit";
+import { BAND_GUIDANCE, bacFor, crGovernance } from "@/lib/governance";
 import {
   BASELINE_LABEL,
   INCOMPLETE_IMPACT_MESSAGE,
+  REGULATORY_MESSAGE,
   VERBAL_MESSAGE,
   impactDimensions,
   isCrOpen,
@@ -110,11 +113,18 @@ function Log({ project }: { project: Project }) {
 }
 
 function ChangeWizard({ project, initial, onExit }: { project: Project; initial: ChangeRequest; onExit: () => void }) {
-  const { saveChangeRequest, saveIncident, setPmAuthorityLimit, startReplanning } = useProject();
+  const { saveChangeRequest, saveIncident, setPmAuthorityLimit, startReplanning, setGovernanceThresholds, setBacReference } = useProject();
   const [cr, setCr] = useState<ChangeRequest>(initial);
   const [step, setStep] = useState(1);
   const [touched, setTouched] = useState(false);
   const [limit, setLimit] = useState(project.pm_authority_limit ?? { amount: "", days: "" });
+  const [thr, setThr] = useState({
+    tol: String(project.governance_thresholds.cost_tolerance_percentage),
+    esc: String(project.governance_thresholds.cost_escalation_threshold_percentage),
+  });
+  const [bacRef, setBacRef] = useState(project.bac_reference ?? "");
+  const gov = crGovernance(cr, project);
+  const dateError = approvalDateError(cr.decision_date, { date: cr.created_at, label: "la creación de la solicitud" });
   const [finished, setFinished] = useState<null | "internal" | "done">(null);
   const set = <K extends keyof ChangeRequest>(k: K, v: ChangeRequest[K]) => setCr((x) => ({ ...x, [k]: v }));
   const setImpact = (patch: Partial<ChangeRequest["impact"]>) => setCr((x) => ({ ...x, impact: { ...x.impact, ...patch } }));
@@ -175,9 +185,19 @@ function ChangeWizard({ project, initial, onExit }: { project: Project; initial:
       setFinished("internal");
       return;
     }
-    if (step === 4) updated = { ...cr, status: "Pendiente de decisión" };
+    if (step === 4)
+      updated = cr.regulatory
+        ? { ...cr, alternative_found: false, alternative_justification: REGULATORY_MESSAGE, status: "Pendiente de decisión" }
+        : { ...cr, status: "Pendiente de decisión" };
     if (step === 5) {
-      updated = { ...cr, route: route!.route, status: cr.decision as ChangeRequest["status"] };
+      updated = {
+        ...cr,
+        route: route!.route,
+        status: cr.decision as ChangeRequest["status"],
+        governance: gov
+          ? { ...gov, escalation_mandatory: route!.escalation_mandatory }
+          : { cost_deviation_pct: 0, band: "Sobre umbral de escalamiento", escalation_mandatory: true },
+      };
       saveChangeRequest(updated);
       setCr(updated);
       setStep(cr.decision === "Aprobada" ? 6 : 7);
@@ -304,6 +324,12 @@ function ChangeWizard({ project, initial, onExit }: { project: Project; initial:
       {step === 4 && (
         <>
           <StepHeading step={4} total={7} subtitle="Alternativas" title="¿Existe alguna alternativa para cumplir la necesidad sin modificar las líneas base comprometidas?" />
+          {cr.regulatory ? (
+            <p role="alert" className="flex gap-2 rounded-xl border border-semaforo-rojo/30 bg-semaforo-rojo/5 p-3 text-sm text-kruger-dark">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-semaforo-rojo" /> {REGULATORY_MESSAGE}
+            </p>
+          ) : (
+          <>
           <div className="sm:max-w-sm">
             <Toggle value={cr.alternative_found === null ? "" : cr.alternative_found ? "Sí" : "No"} options={["Sí", "No"]} onChange={(v) => set("alternative_found", v === "Sí")} />
           </div>
@@ -318,31 +344,61 @@ function ChangeWizard({ project, initial, onExit }: { project: Project; initial:
             </Field>
           )}
           <ErrorText show={touched && !valid}>Responde y detalla la alternativa o la justificación.</ErrorText>
+          </>
+          )}
         </>
       )}
 
       {step === 5 && (
         <>
           <StepHeading step={5} total={7} subtitle="Umbral y decisión de gobernanza" title="¿Quién decide y cuál es la resolución?" />
-          {!cr.regulatory && (
-            <div className="rounded-xl bg-kruger-gray-soft p-4">
-              <p className="text-sm font-medium text-kruger-dark">Autoridad delegada del PM</p>
-              <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-                <Field label="Costo máximo (USD)" htmlFor="lim-a">
-                  <input id="lim-a" type="number" min={0} className={inputClass} value={limit.amount} onChange={(e) => setLimit({ ...limit, amount: e.target.value })} />
+          {cr.regulatory ? (
+            <p className="rounded-xl border border-semaforo-rojo/30 bg-semaforo-rojo/5 p-3 text-sm text-kruger-dark">{REGULATORY_MESSAGE}</p>
+          ) : (
+            <div className="space-y-4 rounded-xl bg-kruger-gray-soft p-4">
+              <p className="text-sm font-medium text-kruger-dark">Gobernanza del costo (% del BAC) y autoridad del PM en cronograma</p>
+              <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                <Field label="Tolerancia operativa (%)" htmlFor="thr-tol">
+                  <input id="thr-tol" type="number" min={0} step="0.1" className={inputClass} value={thr.tol} onChange={(e) => setThr({ ...thr, tol: e.target.value })} />
                 </Field>
-                <Field label="Días máximos" htmlFor="lim-d">
+                <Field label="Umbral de escalamiento (%)" htmlFor="thr-esc">
+                  <input id="thr-esc" type="number" min={0} step="0.1" className={inputClass} value={thr.esc} onChange={(e) => setThr({ ...thr, esc: e.target.value })} />
+                </Field>
+                <button
+                  type="button"
+                  className={btnSecondary}
+                  disabled={!(num(thr.tol) > 0) || !(num(thr.esc) > num(thr.tol))}
+                  onClick={() => setGovernanceThresholds({ cost_tolerance_percentage: num(thr.tol), cost_escalation_threshold_percentage: num(thr.esc) })}
+                >
+                  Guardar umbrales
+                </button>
+              </div>
+              {num(thr.esc) <= num(thr.tol) && <p className="text-xs text-semaforo-rojo">El umbral de escalamiento debe ser mayor que la tolerancia.</p>}
+              {!bacFor(project) && (
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <Field label="BAC de referencia (USD)" htmlFor="bac-ref" hint="La Línea Base de Costos se cargó como archivo: ingresa su BAC para calcular el %.">
+                    <input id="bac-ref" type="number" min={0} className={inputClass} value={bacRef} onChange={(e) => setBacRef(e.target.value)} />
+                  </Field>
+                  <button type="button" className={btnSecondary} disabled={!(num(bacRef) > 0)} onClick={() => setBacReference(bacRef)}>
+                    Guardar BAC
+                  </button>
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                <Field label="Días máximos que el PM puede aprobar" htmlFor="lim-d">
                   <input id="lim-d" type="number" min={0} className={inputClass} value={limit.days} onChange={(e) => setLimit({ ...limit, days: e.target.value })} />
                 </Field>
-                <button type="button" className={btnSecondary} disabled={!limit.amount || !limit.days} onClick={() => setPmAuthorityLimit(limit)}>
+                <button type="button" className={btnSecondary} disabled={!limit.days} onClick={() => setPmAuthorityLimit(limit)}>
                   Guardar límite
                 </button>
               </div>
             </div>
           )}
           <p className="text-sm text-kruger-dark">
-            Impacto: {usd(num(cr.impact.cost_amount))} · {cr.impact.schedule_days || 0} días
+            Impacto: {usd(num(cr.impact.cost_amount))}
+            {gov && ` (${gov.cost_deviation_pct}% del BAC · ${gov.band})`} · {cr.impact.schedule_days || 0} días
           </p>
+          {gov && !cr.regulatory && <p className="text-xs text-kruger-dark/65">{BAND_GUIDANCE[gov.band]}</p>}
           {route ? (
             <>
               <p className={clsx("rounded-xl p-3 text-sm font-medium", route.route === "PM" ? "bg-semaforo-verde/10" : "bg-semaforo-ambar/15")}>
@@ -363,16 +419,22 @@ function ChangeWizard({ project, initial, onExit }: { project: Project; initial:
                 <Field label={route.route === "PM" ? "Decidido por (PM)" : "Registrado por (acta del CCB)"} htmlFor="dec-by">
                   <input id="dec-by" list="people" className={inputClass} value={cr.decision_by} onChange={(e) => set("decision_by", e.target.value)} />
                 </Field>
-                <Field label="Fecha de la decisión" htmlFor="dec-date">
-                  <input id="dec-date" type="date" className={inputClass} value={cr.decision_date} onChange={(e) => set("decision_date", e.target.value)} />
+                <Field label="Fecha de la decisión" htmlFor="dec-date" error={dateError ?? undefined}>
+                  <input id="dec-date" type="date" max={todayIso()} className={inputClass} value={cr.decision_date} onChange={(e) => set("decision_date", e.target.value)} />
                 </Field>
               </div>
+              {!cr.regulatory && gov?.band === "Sobre tolerancia" && route.route === "PM" && (
+                <label className="flex items-start gap-2 text-sm text-kruger-dark">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4 accent-kruger-orange" checked={!!cr.sponsor_informed} onChange={(e) => set("sponsor_informed", e.target.checked)} />
+                  Informé al Patrocinador de esta desviación fuera de la tolerancia (obligatorio)
+                </label>
+              )}
               <Field label={cr.decision === "Rechazada" ? "Justificación del rechazo (obligatoria)" : "Notas de la decisión"} htmlFor="dec-notes">
                 <textarea id="dec-notes" rows={2} className={inputClass} value={cr.decision_notes} onChange={(e) => set("decision_notes", e.target.value)} />
               </Field>
             </>
           ) : (
-            <Hint>Define y guarda la autoridad delegada del PM (costo y días) para saber quién decide.</Hint>
+            <Hint>Guarda los umbrales, el límite de días del PM y, si falta, el BAC de referencia para saber quién decide.</Hint>
           )}
           <ErrorText show={touched && !valid}>Registra la resolución, quién decide, la fecha y, si se rechaza, la justificación.</ErrorText>
         </>
@@ -392,6 +454,11 @@ function ChangeWizard({ project, initial, onExit }: { project: Project; initial:
               );
             })}
           </div>
+          {cr.regulatory && cr.baselines_affected.length === 0 && (
+            <p role="alert" className="rounded-xl border border-semaforo-rojo/30 bg-semaforo-rojo/5 p-3 text-sm text-kruger-dark">
+              Requisito regulatorio o legal: selecciona al menos una línea base. El ajuste es obligatorio.
+            </p>
+          )}
           {cr.baselines_affected.length > 0 ? (
             <p className="flex gap-2 rounded-xl border border-semaforo-ambar/40 bg-semaforo-ambar/10 p-3 text-sm text-kruger-dark">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-semaforo-ambar" /> Al cerrar la solicitud, el proyecto entrará en Replanificación: se bloquea la

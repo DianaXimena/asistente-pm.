@@ -5,6 +5,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { AlertTriangle, ArrowUpCircle, BookOpen, CheckCircle2, ClipboardCheck, Lock, Plus, RefreshCw, ShieldAlert } from "lucide-react";
 import { formatDate } from "@/lib/acta";
+import { approvalDateError, todayIso } from "@/lib/audit";
 import {
   LEVELS,
   RECURRENCE_MESSAGE,
@@ -87,6 +88,8 @@ function WorkPackages({ project }: { project: Project }) {
   const missing = requiredReportPeriod(project);
   const blocked = !!missing || !!project.replanning;
   const [qc, setQc] = useState<{ id: string; by: string; date: string } | null>(null);
+  const qcError = (d: string) =>
+    approvalDateError(d, project.execution_started_at ? { date: project.execution_started_at, label: "el inicio de la Ejecución" } : undefined);
 
   return (
     <section className={card}>
@@ -163,13 +166,13 @@ function WorkPackages({ project }: { project: Project }) {
                       <input id={`qc-${it.id}`} list="people" className={inputClass} value={qc.by} onChange={(e) => setQc({ ...qc, by: e.target.value })} />
                     </Field>
                     <Field label="Fecha" htmlFor={`qcd-${it.id}`}>
-                      <input id={`qcd-${it.id}`} type="date" className={inputClass} value={qc.date} onChange={(e) => setQc({ ...qc, date: e.target.value })} />
+                      <input id={`qcd-${it.id}`} type="date" max={todayIso()} className={inputClass} value={qc.date} onChange={(e) => setQc({ ...qc, date: e.target.value })} />
                     </Field>
                     <div className="flex gap-2">
                       <button
                         type="button"
                         className={btnPrimary}
-                        disabled={!qc.by.trim() || !qc.date}
+                        disabled={!qc.by.trim() || !qc.date || !!qcError(qc.date)}
                         onClick={() => {
                           setWpProgress(it.id, { status: "Completado", qc_verified_by: qc.by.trim(), qc_date: qc.date });
                           setQc(null);
@@ -182,6 +185,7 @@ function WorkPackages({ project }: { project: Project }) {
                       </button>
                     </div>
                   </div>
+                  {qcError(qc.date) && <p className="mt-2 text-xs text-semaforo-rojo">{qcError(qc.date)}</p>}
                 </div>
               )}
             </li>

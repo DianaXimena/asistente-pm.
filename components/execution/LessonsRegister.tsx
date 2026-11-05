@@ -6,6 +6,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Check, LayoutDashboard, Pencil, Plus, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/acta";
+import { approvalDateError, todayIso } from "@/lib/audit";
 import { KNOWLEDGE_AREAS, isLessonComplete } from "@/lib/execution";
 import { uid } from "@/lib/planning";
 import { useProject } from "@/lib/store";
@@ -120,7 +121,11 @@ function LessonForm({ project, initial, onSave, onCancel }: { project: Project; 
   const [touched, setTouched] = useState(false);
   const set = <K extends keyof Lesson>(k: K, v: Lesson[K]) => setL((x) => ({ ...x, [k]: v }));
   const valid =
-    step === 1 ? !!l.type && l.situation.trim().length > 0 : step === 2 ? !!l.area && l.impact.trim().length > 0 : isLessonComplete(l);
+    step === 1
+      ? !!l.type && l.situation.trim().length > 0
+      : step === 2
+        ? !!l.area && l.impact.trim().length > 0
+        : isLessonComplete(l) && !approvalDateError(l.date, { date: project.created_at, label: "la creación del proyecto" });
 
   return (
     <WizardFrame
@@ -176,8 +181,8 @@ function LessonForm({ project, initial, onSave, onCancel }: { project: Project; 
             <Field label="Registrado por" htmlFor="by">
               <input id="by" list="people" className={inputClass} value={l.recorded_by} onChange={(e) => set("recorded_by", e.target.value)} />
             </Field>
-            <Field label="Fecha" htmlFor="date">
-              <input id="date" type="date" className={inputClass} value={l.date} onChange={(e) => set("date", e.target.value)} />
+            <Field label="Fecha" htmlFor="date" error={approvalDateError(l.date, { date: project.created_at, label: "la creación del proyecto" }) ?? undefined}>
+              <input id="date" type="date" max={todayIso()} className={inputClass} value={l.date} onChange={(e) => set("date", e.target.value)} />
             </Field>
           </div>
           <ErrorText show={touched && !valid}>Completa la recomendación y quién la registra.</ErrorText>
