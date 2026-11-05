@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, Briefcase, CalendarCheck, Compass, FileText, Gauge, History, KanbanSquare, PartyPopper, PenLine, RotateCcw } from "lucide-react";
+import { AlertTriangle, ArrowRight, Briefcase, CalendarCheck, Compass, FileText, Gauge, History, KanbanSquare, LibraryBig, PartyPopper, PenLine, RotateCcw } from "lucide-react";
 import { APPROACH_LABEL, getAlerts, getAssistantMessage, getOverallProgress } from "@/lib/assistant";
 import { useProject } from "@/lib/store";
 import type { PhaseId, Project } from "@/lib/types";
@@ -64,6 +64,7 @@ function DashboardView({ project }: { project: Project }) {
           <p className="px-2 pb-2 pt-6 text-xs font-medium uppercase tracking-wide text-kruger-dark/50">Herramientas</p>
           <ul className="space-y-1">
             {[
+              { href: "/repositorio", label: "Repositorio de plantillas", icon: LibraryBig },
               { href: "/ejecucion", label: "Tablero de Ejecución", icon: KanbanSquare },
               { href: "/reuniones", label: "Actas de reunión", icon: CalendarCheck },
               { href: "/disposicion-cambio", label: "Disposición al cambio", icon: Gauge },

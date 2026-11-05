@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, CheckCircle2, Compass, FolderKanban, Plus, X, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Compass, FolderKanban, LibraryBig, Plus, X, XCircle } from "lucide-react";
 import { APPROACH_LABEL, getCurrentPhase, getOverallProgress } from "@/lib/assistant";
 import { PHASE_TOOLTIPS } from "@/lib/pmp";
 import { indexHealth, performanceVsBaseline, type Health } from "@/lib/portfolio";
@@ -42,6 +42,10 @@ export function Portfolio() {
               <p className="text-xs text-kruger-dark/55">Portafolio de proyectos</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+          <Link href="/repositorio" className="hidden items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-kruger-dark transition hover:bg-kruger-gray-soft sm:inline-flex">
+            <LibraryBig className="h-4 w-4 text-kruger-orange" /> Plantillas CMMI / PMP
+          </Link>
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
@@ -50,6 +54,7 @@ export function Portfolio() {
           >
             {open ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />} Nuevo Proyecto
           </button>
+          </div>
         </div>
       </header>
 

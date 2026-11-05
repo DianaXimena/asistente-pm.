@@ -98,6 +98,7 @@ export function createProject(clientName: string, projectName: string): Project 
     requirements: [],
     audit_log: [],
     governance_thresholds: DEFAULT_THRESHOLDS,
+    drive_docs: {},
   };
 }
 
@@ -120,6 +121,7 @@ export function normalizeProject(p: Project): Project {
     requirements: p.requirements ?? [],
     audit_log: p.audit_log ?? [],
     governance_thresholds: p.governance_thresholds ?? DEFAULT_THRESHOLDS,
+    drive_docs: p.drive_docs ?? {},
     phases: template.map((tph) => {
       const stored = p.phases.find((x) => x.id === tph.id);
       if (!stored) return tph;

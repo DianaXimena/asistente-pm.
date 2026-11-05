@@ -19,6 +19,13 @@ npm run dev
   Control, Cierre) con tooltips PMP. En Monitoreo y Control: cronograma, presupuesto, utilización de recursos
   y curva S (PV, EV y AC acumulados).
 
+## Repositorio de Plantillas (CMMI / PMP)
+
+`/repositorio`: catálogo de 13 plantillas con tipo de proyecto, grupo de procesos (tooltips PMP), propósito y
+acción "Generar / Abrir en Google Docs". La generación usa Google Apps Script (`google-apps-script/`) a través de
+`/api/drive/generate`, con las variables `GOOGLE_APPS_SCRIPT_URL` y `GOOGLE_APPS_SCRIPT_TOKEN`.
+Guía de instalación: [`google-apps-script/README.md`](./google-apps-script/README.md).
+
 ## Flujo actual
 
 1. **Nuevo proyecto** (botón en el portafolio): nombre del cliente y del proyecto.

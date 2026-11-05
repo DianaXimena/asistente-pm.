@@ -71,15 +71,12 @@ export function ActaSummary({ data, onEdit }: { data: ActaFormData; onEdit: () =
       </article>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap print:hidden">
-        <button
-          type="button"
-          disabled
-          title="La integración con Google Drive aún no está conectada"
-          className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-kruger-gray px-5 py-2.5 text-sm font-semibold text-white"
+        <Link
+          href="/repositorio"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-kruger-gray/40 bg-white px-5 py-2.5 text-sm font-medium text-kruger-dark transition hover:border-kruger-orange"
         >
-          <ExternalLink className="h-4 w-4" /> Exportar y Abrir Plantilla en Google Drive
-          <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] uppercase">Próximamente</span>
-        </button>
+          <ExternalLink className="h-4 w-4 text-kruger-orange" /> Generar Plantilla en Google Docs
+        </Link>
         <button
           type="button"
           onClick={() => window.print()}

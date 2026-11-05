@@ -33,6 +33,7 @@ import type {
   QuestionnaireId,
   ResourcePlan,
   GovernanceThresholds,
+  DriveDoc,
   Requirement,
   Risk,
   WpProgress,
@@ -209,6 +210,7 @@ interface ProjectStore {
   approveRtm: () => void;
   setGovernanceThresholds: (t: GovernanceThresholds) => void;
   setBacReference: (v: string) => void;
+  saveDriveDoc: (templateId: string, doc: DriveDoc, templateName: string) => void;
   closeProject: () => void;
   saveChangeReadiness: (c: ChangeReadiness) => void;
   saveMeeting: (m: Meeting) => void;
@@ -416,6 +418,15 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     (t: GovernanceThresholds) =>
       mutate((p) =>
         appendAudit({ ...p, governance_thresholds: t }, "Umbrales de gobernanza actualizados", "Gobernanza", "governance_thresholds", `Tolerancia ${t.cost_tolerance_percentage}% · Umbral ${t.cost_escalation_threshold_percentage}%`),
+      ),
+    [mutate],
+  );
+  const saveDriveDoc = useCallback(
+    (templateId: string, doc: DriveDoc, templateName: string) =>
+      mutate((p) =>
+        p.drive_docs?.[templateId]?.id === doc.id
+          ? p
+          : appendAudit({ ...p, drive_docs: { ...(p.drive_docs ?? {}), [templateId]: doc } }, "Documento generado en Google Drive", "Plantilla", templateId, `${templateName} → ${doc.folder}`),
       ),
     [mutate],
   );
@@ -657,6 +668,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       approveRtm,
       setGovernanceThresholds,
       setBacReference,
+      saveDriveDoc,
       advancePhase,
       reset,
     }),
@@ -705,6 +717,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       approveRtm,
       setGovernanceThresholds,
       setBacReference,
+      saveDriveDoc,
       advancePhase,
       reset,
     ],

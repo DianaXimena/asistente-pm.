@@ -545,6 +545,15 @@ export interface Project {
   governance_thresholds: GovernanceThresholds;
   /** BAC de referencia si la Línea Base de Costos se cargó como archivo. */
   bac_reference?: string;
+  /** Documentos generados en Google Drive desde el Repositorio de Plantillas. */
+  drive_docs: Record<string, DriveDoc>;
+}
+
+export interface DriveDoc {
+  id: string;
+  url: string;
+  folder: string;
+  generated_at: string;
 }
 
 /** Semáforo visual del motor de fases: Verde completo, Ámbar pendiente, Rojo bloqueante. */
