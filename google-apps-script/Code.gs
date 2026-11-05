@@ -47,9 +47,16 @@ function doPost(e) {
     }
 
     var doc = DocumentApp.create(req.docName);
-    DriveApp.getFileById(doc.getId()).moveTo(folder);
-    buildDocument_(doc, req);
-    doc.saveAndClose();
+    var file = DriveApp.getFileById(doc.getId());
+    file.moveTo(folder);
+    try {
+      buildDocument_(doc, req);
+      doc.saveAndClose();
+    } catch (buildErr) {
+      // Si falla el formato, no se deja un documento incompleto que luego se reutilizaría.
+      file.setTrashed(true);
+      throw buildErr;
+    }
 
     return json_({ ok: true, reused: false, id: doc.getId(), url: doc.getUrl(), folder: folder.getName() });
   } catch (err) {
@@ -135,8 +142,10 @@ function buildDocument_(doc, req) {
   removeFirstEmpty_(footer);
 
   // 1. Título y encabezado visual (tabla sin bordes).
+  // Paragraph.setText() no devuelve el párrafo (void): no se puede encadenar.
   var title = body.getParagraphs()[0];
-  title.setText(req.title).setHeading(DocumentApp.ParagraphHeading.TITLE);
+  title.setText(req.title);
+  title.setHeading(DocumentApp.ParagraphHeading.TITLE);
   var subtitle = body.appendParagraph((req.typesLabel || '') + '  ·  ' + (req.phasesLabel || ''));
   subtitle.editAsText().setForegroundColor(STYLE.muted).setFontSize(10);
 
