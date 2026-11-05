@@ -52,6 +52,34 @@ async function init() {
     BEGIN RAISE EXCEPTION 'auth_audit es de solo inserción'; END; $$ LANGUAGE plpgsql`;
   await q`DROP TRIGGER IF EXISTS auth_audit_no_change ON auth_audit`;
   await q`CREATE TRIGGER auth_audit_no_change BEFORE UPDATE OR DELETE ON auth_audit FOR EACH ROW EXECUTE FUNCTION auth_audit_append_only()`;
+  // Proyectos: documento JSON por proyecto con dueño y versión (concurrencia optimista).
+  await q`CREATE TABLE IF NOT EXISTS projects (
+    id text PRIMARY KEY,
+    owner_id uuid NOT NULL REFERENCES app_users(id),
+    data jsonb NOT NULL,
+    version integer NOT NULL DEFAULT 1,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz
+  )`;
+  // Bitácora de auditoría del proyecto en el servidor: solo inserción.
+  await q`CREATE TABLE IF NOT EXISTS project_audit (
+    project_id text NOT NULL REFERENCES projects(id),
+    seq integer NOT NULL,
+    at timestamptz NOT NULL,
+    received_at timestamptz NOT NULL DEFAULT now(),
+    actor_email text NOT NULL,
+    action text NOT NULL,
+    entity text NOT NULL,
+    entity_id text NOT NULL,
+    detail text NOT NULL DEFAULT '',
+    hash text NOT NULL,
+    PRIMARY KEY (project_id, seq)
+  )`;
+  await q`CREATE OR REPLACE FUNCTION project_audit_append_only() RETURNS trigger AS $$
+    BEGIN RAISE EXCEPTION 'project_audit es de solo inserción'; END; $$ LANGUAGE plpgsql`;
+  await q`DROP TRIGGER IF EXISTS project_audit_no_change ON project_audit`;
+  await q`CREATE TRIGGER project_audit_no_change BEFORE UPDATE OR DELETE ON project_audit FOR EACH ROW EXECUTE FUNCTION project_audit_append_only()`;
   await seedInitialUsers();
 }
 

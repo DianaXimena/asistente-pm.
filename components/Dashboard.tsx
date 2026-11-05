@@ -16,6 +16,7 @@ import { PhaseStepper } from "./PhaseStepper";
 import { ProgressBar } from "./ProgressBar";
 import { RequireProject } from "./RequireProject";
 import { UserMenu } from "./auth/UserMenu";
+import { SyncBadge } from "./SyncBadge";
 
 export function Dashboard() {
   return <RequireProject>{(p) => <DashboardView project={p} />}</RequireProject>;
@@ -62,8 +63,9 @@ function DashboardView({ project }: { project: Project }) {
         <nav aria-label="Fases del proyecto" className="px-4 pb-6 pt-5">
           <p className="px-2 pb-3 text-xs font-medium uppercase tracking-wide text-kruger-dark/50">Fases</p>
           <PhaseStepper phases={project.phases} currentPhase={project.current_phase} selectedPhase={selected} onSelect={setSelected} />
-          <div className="px-2 pt-6">
+          <div className="space-y-2 px-2 pt-6">
             <UserMenu compact />
+            <SyncBadge />
           </div>
           <p className="px-2 pb-2 pt-6 text-xs font-medium uppercase tracking-wide text-kruger-dark/50">Herramientas</p>
           <ul className="space-y-1">

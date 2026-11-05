@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { calcInicioProgress } from "./acta";
 import { canAdvance } from "./assistant";
 import { appendAudit } from "./audit";
@@ -165,7 +165,22 @@ function approveBaseline(p: Project, q: QuestionnaireId, patch: Partial<Project>
   return appendAudit(patchInput({ ...p, ...patch }, q, asQuestionnaire), "Línea base aprobada", "Línea base", q);
 }
 
+export interface SyncState {
+  /** cloud: base de datos; local: solo este navegador (sin servidor configurado). */
+  mode: "cloud" | "local";
+  status: "idle" | "saving" | "error" | "conflict";
+  message?: string;
+}
+
 interface ProjectStore {
+  sync: SyncState;
+  /** Dueño de cada proyecto (correo), visible para administradores. */
+  owners: Record<string, string>;
+  me: { id: string; email: string; role: "admin" | "pm" } | null;
+  /** Proyectos que existen solo en este navegador y aún no están en la base. */
+  localOnly: Project[];
+  uploadLocal: () => Promise<void>;
+  discardLocal: () => void;
   /** Proyecto activo (el que se está gestionando). */
   project: Project | null;
   /** Portafolio completo. */
@@ -243,33 +258,186 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   const selectProject = useCallback((id: string) => setState((s) => (s.projects.some((x) => x.project_id === id) ? { ...s, activeId: id } : s)), []);
 
-  useEffect(() => {
+  const [sync, setSync] = useState<SyncState>({ mode: "local", status: "idle" });
+  const [owners, setOwners] = useState<Record<string, string>>({});
+  const [me, setMe] = useState<ProjectStore["me"]>(null);
+  const [localOnly, setLocalOnly] = useState<Project[]>([]);
+  const versions = useRef<Record<string, number>>({});
+  const synced = useRef<Record<string, string>>({});
+  const inFlight = useRef<Record<string, boolean>>({});
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const latest = useRef<PortfolioState>(state);
+  latest.current = state;
+  const cacheKey = me ? `${STORAGE_KEY}:${me.id}` : STORAGE_KEY;
+
+  const readPortfolio = (key: string): PortfolioState | null => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const st = JSON.parse(raw) as PortfolioState;
-        setState({ projects: st.projects.map((x) => recompute(normalizeProject(x))), activeId: st.activeId });
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as PortfolioState) : null;
+    } catch {
+      return null;
+    }
+  };
+  const readLegacy = (): Project[] => {
+    try {
+      const raw = localStorage.getItem(LEGACY_KEY);
+      return raw ? [JSON.parse(raw) as Project] : [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Carga inicial: base de datos si está disponible; si no, solo este navegador.
+  useEffect(() => {
+    (async () => {
+      let remote: {
+        me: { id: string; email: string; role: "admin" | "pm" };
+        projects: { data: Project; version: number; owner_email: string }[];
+      } | null = null;
+      try {
+        const res = await fetch("/api/projects", { cache: "no-store" });
+        if (res.ok) remote = await res.json();
+      } catch {
+        /* sin servidor */
+      }
+      if (remote) {
+        const server = remote.projects.map((x) => recompute(normalizeProject(x.data)));
+        remote.projects.forEach((x, i) => {
+          versions.current[x.data.project_id] = x.version;
+          synced.current[x.data.project_id] = JSON.stringify(server[i]);
+        });
+        setOwners(Object.fromEntries(remote.projects.map((x) => [x.data.project_id, x.owner_email])));
+        setMe(remote.me);
+        const cached = readPortfolio(`${STORAGE_KEY}:${remote.me.id}`);
+        const ids = new Set(server.map((x) => x.project_id));
+        const candidates = [...(cached?.projects ?? []), ...(readPortfolio(STORAGE_KEY)?.projects ?? []), ...readLegacy()];
+        const seen = new Set<string>();
+        setLocalOnly(
+          candidates
+            .filter((x) => !ids.has(x.project_id) && !seen.has(x.project_id) && seen.add(x.project_id))
+            .map((x) => recompute(normalizeProject(x))),
+        );
+        setState({ projects: server, activeId: cached?.activeId && ids.has(cached.activeId) ? cached.activeId : null });
+        setSync({ mode: "cloud", status: "idle" });
       } else {
-        const legacy = localStorage.getItem(LEGACY_KEY);
-        if (legacy) {
-          const p = recompute(normalizeProject(JSON.parse(legacy) as Project));
-          setState({ projects: [p], activeId: p.project_id });
+        const st = readPortfolio(STORAGE_KEY);
+        if (st) setState({ projects: st.projects.map((x) => recompute(normalizeProject(x))), activeId: st.activeId });
+        else {
+          const legacy = readLegacy().map((x) => recompute(normalizeProject(x)));
+          if (legacy.length) setState({ projects: legacy, activeId: legacy[0].project_id });
         }
+        setSync({ mode: "local", status: "idle" });
+      }
+      setHydrated(true);
+    })();
+  }, []);
+
+  /** Envía un proyecto a la base (un envío a la vez por proyecto). */
+  const pushProject = useCallback(async (id: string) => {
+    if (inFlight.current[id]) return;
+    const p = latest.current.projects.find((x) => x.project_id === id);
+    if (!p) return;
+    const json = JSON.stringify(p);
+    if (synced.current[id] === json) return;
+    inFlight.current[id] = true;
+    setSync((s) => ({ ...s, status: "saving", message: undefined }));
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: p, version: versions.current[id] ?? 0 }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { version?: number; owner_email?: string; data?: Project; error?: string };
+      if (res.status === 401) {
+        window.location.assign("/login");
+        return;
+      }
+      if (res.ok && body.version) {
+        versions.current[id] = body.version;
+        synced.current[id] = json;
+        if (body.owner_email) setOwners((o) => ({ ...o, [id]: o[id] ?? body.owner_email! }));
+        setSync({ mode: "cloud", status: "idle" });
+      } else if (res.status === 409 && body.data && body.version) {
+        const fresh = recompute(normalizeProject(body.data));
+        versions.current[id] = body.version;
+        synced.current[id] = JSON.stringify(fresh);
+        setState((s) => ({ ...s, projects: s.projects.map((x) => (x.project_id === id ? fresh : x)) }));
+        setSync({ mode: "cloud", status: "conflict", message: "Otro usuario actualizó este proyecto: se cargó la versión más reciente. Revisa y repite tu último cambio." });
+      } else {
+        setSync({ mode: "cloud", status: "error", message: body.error ?? "No se pudo guardar en la base. Tus cambios siguen en este navegador." });
       }
     } catch {
-      /* almacenamiento no disponible */
+      setSync({ mode: "cloud", status: "error", message: "Sin conexión con la base. Tus cambios siguen en este navegador y se reintentarán." });
+      timers.current[id] = setTimeout(() => pushProject(id), 10_000);
+    } finally {
+      inFlight.current[id] = false;
     }
-    setHydrated(true);
+    // Si hubo más cambios mientras se guardaba, se envían ahora.
+    const after = latest.current.projects.find((x) => x.project_id === id);
+    if (after && synced.current[id] !== JSON.stringify(after) && versions.current[id]) setTimeout(() => pushProject(id), 50);
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(cacheKey, JSON.stringify(state));
     } catch {
       /* ignorar */
     }
-  }, [state, hydrated]);
+    if (sync.mode !== "cloud") return;
+    for (const p of state.projects) {
+      if (synced.current[p.project_id] === JSON.stringify(p)) continue;
+      clearTimeout(timers.current[p.project_id]);
+      timers.current[p.project_id] = setTimeout(() => pushProject(p.project_id), 700);
+    }
+    // Proyectos eliminados del portafolio: baja lógica en la base.
+    const ids = new Set(state.projects.map((x) => x.project_id));
+    for (const id of Object.keys(versions.current)) {
+      if (ids.has(id)) continue;
+      delete versions.current[id];
+      delete synced.current[id];
+      fetch(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
+    }
+  }, [state, hydrated, sync.mode, cacheKey, pushProject]);
+
+  const uploadLocal = useCallback(async () => {
+    const pending = [...localOnly];
+    const failed: Project[] = [];
+    for (const p of pending) {
+      const res = await fetch(`/api/projects/${encodeURIComponent(p.project_id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: p, version: 0 }),
+      }).catch(() => null);
+      const body = res ? ((await res.json().catch(() => ({}))) as { version?: number; owner_email?: string }) : {};
+      if (res?.ok && body.version) {
+        versions.current[p.project_id] = body.version;
+        synced.current[p.project_id] = JSON.stringify(p);
+        setOwners((o) => ({ ...o, [p.project_id]: body.owner_email ?? me?.email ?? "" }));
+        setState((s) => ({ ...s, projects: [...s.projects.filter((x) => x.project_id !== p.project_id), p] }));
+      } else failed.push(p);
+    }
+    setLocalOnly(failed);
+    if (failed.length === 0) {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(LEGACY_KEY);
+      } catch {
+        /* ignorar */
+      }
+    }
+    setSync({ mode: "cloud", status: failed.length ? "error" : "idle", message: failed.length ? `${failed.length} proyecto(s) no se pudieron subir.` : undefined });
+  }, [localOnly, me]);
+
+  const discardLocal = useCallback(() => {
+    setLocalOnly([]);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(LEGACY_KEY);
+    } catch {
+      /* ignorar */
+    }
+  }, []);
 
   const mutate = useCallback((fn: (p: Project) => Project) => {
     setProject((p) => (p ? recompute(fn(p)) : p));
@@ -624,6 +792,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(
     () => ({
+      sync,
+      owners,
+      me,
+      localOnly,
+      uploadLocal,
+      discardLocal,
       project,
       projects: state.projects,
       selectProject,
@@ -673,6 +847,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       reset,
     }),
     [
+      sync,
+      owners,
+      me,
+      localOnly,
+      uploadLocal,
+      discardLocal,
       project,
       state.projects,
       selectProject,

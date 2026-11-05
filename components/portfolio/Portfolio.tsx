@@ -14,13 +14,15 @@ import { Field, inputClass } from "../acta/fields";
 import { ProgressBar } from "../ProgressBar";
 import { Tooltip } from "../Tooltip";
 import { UserMenu } from "../auth/UserMenu";
+import { SyncBadge } from "../SyncBadge";
 import { btnPrimary, btnSecondary } from "../ui";
 
 /** Colores de serie validados (CVD y visión normal) sobre la superficie clara. */
 export const SERIES = { pv: "#1F6FB2", ev: "#F05A22", ac: "#1A9E8F" };
 
 export function Portfolio() {
-  const { projects, hydrated, create, selectProject } = useProject();
+  const { projects, hydrated, create, selectProject, localOnly, uploadLocal, discardLocal, sync, owners, me } = useProject();
+  const [uploading, setUploading] = useState(false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [client, setClient] = useState("");
@@ -44,6 +46,9 @@ export function Portfolio() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+          <span className="hidden md:inline-flex">
+            <SyncBadge />
+          </span>
           <Link href="/repositorio" className="hidden items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-kruger-dark transition hover:bg-kruger-gray-soft sm:inline-flex">
             <LibraryBig className="h-4 w-4 text-kruger-orange" /> Plantillas CMMI / PMP
           </Link>
@@ -93,6 +98,39 @@ export function Portfolio() {
           </form>
         )}
 
+        {sync.mode === "cloud" && localOnly.length > 0 && (
+          <section className="flex flex-col gap-3 rounded-2xl border border-kruger-orange/40 bg-white p-5 shadow-card sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-kruger-dark">
+              Tienes <strong>{localOnly.length}</strong> proyecto(s) guardado(s) solo en este navegador:{" "}
+              <span className="text-kruger-dark/70">{localOnly.map((p) => p.project_name).join(", ")}</span>. Súbelos a la base para que queden a tu nombre y
+              disponibles desde cualquier equipo.
+            </p>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                className={btnPrimary}
+                disabled={uploading}
+                onClick={async () => {
+                  setUploading(true);
+                  await uploadLocal();
+                  setUploading(false);
+                }}
+              >
+                {uploading ? "Subiendo…" : "Subir a la base"}
+              </button>
+              <button
+                type="button"
+                className={btnSecondary}
+                onClick={() => {
+                  if (window.confirm("Se descartarán los proyectos que solo existen en este navegador. ¿Continuar?")) discardLocal();
+                }}
+              >
+                Descartar
+              </button>
+            </div>
+          </section>
+        )}
+
         {/* Vista de portafolio */}
         <section className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <div className="rounded-2xl bg-gradient-to-br from-kruger-orange to-kruger-orange-dark p-6 text-white shadow-card">
@@ -122,7 +160,12 @@ export function Portfolio() {
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p, i) => (
             <li key={p.project_id} className="animate-enter" style={{ animationDelay: `${i * 50}ms` }}>
-              <ProjectCard project={p} href={p.approach ? "/proyecto" : "/nuevo/insumo"} onOpen={() => selectProject(p.project_id)} />
+              <ProjectCard
+                project={p}
+                owner={me?.role === "admin" && owners[p.project_id] && owners[p.project_id] !== me.email ? owners[p.project_id] : undefined}
+                href={p.approach ? "/proyecto" : "/nuevo/insumo"}
+                onOpen={() => selectProject(p.project_id)}
+              />
             </li>
           ))}
         </ul>
@@ -148,7 +191,7 @@ export function HealthBadge({ label, value }: { label: string; value: number }) 
   );
 }
 
-function ProjectCard({ project: p, href, onOpen }: { project: Project; href: string; onOpen: () => void }) {
+function ProjectCard({ project: p, href, onOpen, owner }: { project: Project; href: string; onOpen: () => void; owner?: string }) {
   const phase = getCurrentPhase(p);
   const overall = getOverallProgress(p);
   const perf = performanceVsBaseline(p);
@@ -164,6 +207,7 @@ function ProjectCard({ project: p, href, onOpen }: { project: Project; href: str
         <div className="min-w-0">
           <p className="truncate text-xs font-medium text-kruger-dark/55">{p.client_name}</p>
           <p className="mt-0.5 truncate text-base font-semibold text-kruger-dark">{p.project_name}</p>
+          {owner && <p className="mt-0.5 truncate text-[11px] text-kruger-dark/55">Dueño: {owner}</p>}
         </div>
         <span
           className={clsx(

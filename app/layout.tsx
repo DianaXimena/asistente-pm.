@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SyncToast } from "@/components/SyncToast";
 import { ProjectProvider } from "@/lib/store";
 import "./globals.css";
 
@@ -11,7 +12,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es">
       <body className="font-sans">
-        <ProjectProvider>{children}</ProjectProvider>
+        <ProjectProvider>
+          {children}
+          <SyncToast />
+        </ProjectProvider>
       </body>
     </html>
   );

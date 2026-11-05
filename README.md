@@ -31,6 +31,15 @@ Variables de entorno en Vercel:
 
 Las tablas se crean solas en el primer acceso; los usuarios iniciales solo se crean si la tabla está vacía.
 
+### Proyectos en la base
+
+- Cada proyecto se guarda en `projects` con su dueño; un Project Manager ve los suyos y un administrador ve todos.
+- Guardado automático con control de versiones: si otra persona cambió el proyecto, se carga la versión más reciente y se avisa.
+- La bitácora de auditoría oficial vive en `project_audit` (solo inserción, protegida por trigger); la API rechaza
+  cualquier cambio sobre entradas ya registradas y guarda quién y cuándo las recibió.
+- Eliminar un proyecto es una baja lógica: deja de mostrarse y su bitácora se conserva.
+- Los proyectos que existían solo en el navegador se suben con el botón "Subir a la base" del portafolio.
+
 ## Portafolio
 
 - **`/` Portafolio**: botón "Nuevo Proyecto" (captura de cliente y proyecto), total de proyectos en curso y una
