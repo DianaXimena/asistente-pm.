@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, Briefcase, Compass, FileText, KanbanSquare, PenLine, RotateCcw } from "lucide-react";
+import { AlertTriangle, ArrowRight, Briefcase, CalendarCheck, Compass, FileText, Gauge, KanbanSquare, PartyPopper, PenLine, RotateCcw } from "lucide-react";
 import { APPROACH_LABEL, getAlerts, getAssistantMessage, getOverallProgress } from "@/lib/assistant";
 import { useProject } from "@/lib/store";
 import type { PhaseId, Project } from "@/lib/types";
 import { AssistantCard } from "./AssistantCard";
 import { Radiator } from "./execution/ExecutionBoard";
+import { readinessLevel, readinessScore } from "./tools/Tools";
 import { PhaseChecklist } from "./PhaseChecklist";
 import { PhaseStepper } from "./PhaseStepper";
 import { ProgressBar } from "./ProgressBar";
@@ -19,7 +20,7 @@ export function Dashboard() {
 }
 
 function DashboardView({ project }: { project: Project }) {
-  const { signActa, advancePhase, reset } = useProject();
+  const { signActa, advancePhase, closeProject, reset } = useProject();
   const [selected, setSelected] = useState<PhaseId>(project.current_phase);
   useEffect(() => setSelected(project.current_phase), [project.current_phase]);
 
@@ -56,6 +57,20 @@ function DashboardView({ project }: { project: Project }) {
         <nav aria-label="Fases del proyecto" className="px-4 pb-6 pt-5">
           <p className="px-2 pb-3 text-xs font-medium uppercase tracking-wide text-kruger-dark/50">Fases</p>
           <PhaseStepper phases={project.phases} currentPhase={project.current_phase} selectedPhase={selected} onSelect={setSelected} />
+          <p className="px-2 pb-2 pt-6 text-xs font-medium uppercase tracking-wide text-kruger-dark/50">Herramientas</p>
+          <ul className="space-y-1">
+            {[
+              { href: "/ejecucion", label: "Tablero de Ejecución", icon: KanbanSquare },
+              { href: "/reuniones", label: "Actas de reunión", icon: CalendarCheck },
+              { href: "/disposicion-cambio", label: "Disposición al cambio", icon: Gauge },
+            ].map(({ href, label, icon: Icon }) => (
+              <li key={href}>
+                <Link href={href} className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-kruger-dark transition hover:bg-kruger-gray-soft">
+                  <Icon className="h-4 w-4 text-kruger-orange" /> {label}
+                </Link>
+              </li>
+            ))}
+          </ul>
           <button
             type="button"
             onClick={() => {
@@ -139,7 +154,35 @@ function DashboardView({ project }: { project: Project }) {
             </div>
           ))}
 
-          <AssistantCard data={assistant} onAdvance={advancePhase} />
+          {project.closure?.closed_at && (
+            <section className="flex items-center gap-4 rounded-2xl border border-semaforo-verde/30 bg-white p-6 shadow-card">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-kruger-orange-soft">
+                <PartyPopper className="h-6 w-6 text-kruger-orange" />
+              </span>
+              <div>
+                <p className="text-base font-semibold text-kruger-dark">¡Felicitaciones al equipo!</p>
+                <p className="text-sm text-kruger-dark/65">
+                  Proyecto cerrado el {new Date(project.closure.closed_at).toLocaleDateString("es-EC", { day: "2-digit", month: "long", year: "numeric" })}. Reconoce el trabajo de
+                  todos y libera los recursos.
+                </p>
+              </div>
+            </section>
+          )}
+
+          <AssistantCard data={assistant} onAdvance={advancePhase} onClose={closeProject} />
+
+          <Link
+            href="/disposicion-cambio"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-kruger-gray/25 bg-white p-4 shadow-card transition hover:border-kruger-orange"
+          >
+            <span className="flex items-center gap-3 text-sm text-kruger-dark">
+              <Gauge className="h-5 w-5 text-kruger-orange" />
+              {project.change_readiness
+                ? `Disposición al cambio de la organización: ${readinessScore(project.change_readiness)}/20 · ${readinessLevel(readinessScore(project.change_readiness))}`
+                : "Evalúa la disposición al cambio de la organización (4 factores, 1 minuto)"}
+            </span>
+            <ArrowRight className="h-4 w-4 text-kruger-orange" />
+          </Link>
 
           {["ejecucion", "control", "cierre"].includes(project.current_phase) && (
             <section className="rounded-2xl border border-kruger-gray/25 bg-white p-6 shadow-card">

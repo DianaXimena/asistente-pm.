@@ -195,7 +195,7 @@ export const latestReport = (p: Project) => [...p.reports].sort((a, b) => b.peri
 
 /** Periodo (YYYY-MM) cuyo informe es obligatorio hoy, o null si aún no corresponde. */
 export function requiredReportPeriod(p: Project, today = new Date()): string | null {
-  if (!p.execution_started_at) return null;
+  if (!p.execution_started_at || p.closure?.closed_at) return null;
   const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const period = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
   const started = new Date(p.execution_started_at);

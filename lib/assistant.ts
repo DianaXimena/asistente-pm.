@@ -1,4 +1,5 @@
 import { QUESTIONNAIRES } from "./questionnaires";
+import { BASELINE_LABEL, REPLAN_MESSAGE, contingencyStatus, isCrOpen } from "./control";
 import { RED_MESSAGE, evm, isOverdue, isRecurring, latestReport, requiredReportPeriod } from "./execution";
 import { engagementLabel, needsPriorityEngagement } from "./stakeholders";
 import type { ApproachType, InputStatus, MandatoryInput, Phase, PhaseStatus, Project, Semaforo } from "./types";
@@ -57,7 +58,8 @@ export function inputSemaforo(status: InputStatus, phaseIsCurrent: boolean): Sem
 
 export type AssistantCta =
   | { kind: "link"; label: string; href: string; hint?: string }
-  | { kind: "advance"; label: string; hint?: string };
+  | { kind: "advance"; label: string; hint?: string }
+  | { kind: "close"; label: string; hint?: string };
 
 export interface AssistantAlert {
   id: string;
@@ -125,7 +127,31 @@ export function getAssistantMessage(project: Project): AssistantMessage {
     };
   }
 
-  // 5. Compuerta de salida abierta.
+  // Proyecto cerrado.
+  if (project.closure?.closed_at) {
+    return { ...common, message: "¡Proyecto cerrado! Entregables aceptados, contratos cerrados y lecciones archivadas como activos de la organización." };
+  }
+
+  // 5a. Replanificación terminada: vuelve a la fase desde la que se retrocedió.
+  if (project.replanning && phase.id === "planificacion" && canAdvance(project)) {
+    const back = project.phases.find((p) => p.id === project.replanning!.resume_phase)!;
+    return {
+      ...common,
+      message: `${base} Líneas base actualizadas. Haz clic aquí para aprobar el Plan y volver a ${back.phase_name}.`,
+      cta: { kind: "advance", label: `Aprobar Plan actualizado y volver a ${back.phase_name}` },
+    };
+  }
+
+  // 5b. Compuerta de salida del proyecto.
+  if (phase.id === "cierre") {
+    return {
+      ...common,
+      message: `${base} Aceptación formal, contratos y lecciones listos. Haz clic aquí para celebrar y cerrar el proyecto.`,
+      cta: { kind: "close", label: "Celebrar y Cerrar Proyecto" },
+    };
+  }
+
+  // 5c. Compuerta de salida abierta.
   const next = project.phases[project.phases.findIndex((p) => p.id === phase.id) + 1];
   if (next && canAdvance(project)) {
     return {
@@ -144,6 +170,8 @@ export function getAssistantMessage(project: Project): AssistantMessage {
 /** Alertas proactivas visibles en el panel principal. */
 export function getAlerts(project: Project): AssistantAlert[] {
   const alerts: AssistantAlert[] = [];
+  // Proyecto cerrado: ya no hay alertas operativas.
+  if (project.closure?.closed_at) return alerts;
   const acta = project.phases.flatMap((p) => p.mandatory_inputs).find((i) => i.questionnaire === "acta-constitucion");
   if (acta?.status === "Pendiente de Firma") {
     alerts.push({
@@ -160,6 +188,45 @@ export function getAlerts(project: Project): AssistantAlert[] {
       detail: `Alto poder con brecha negativa (Actual: ${engagementLabel(s.current_level)} → Deseado: ${engagementLabel(
         s.desired_level,
       )}).${s.action_plan ? ` Plan: ${s.action_plan}` : ""}`,
+    });
+  }
+  if (project.replanning) {
+    alerts.push({
+      id: "replanificacion",
+      title: "Retroceso a Planificación (Replanificación)",
+      detail: `${REPLAN_MESSAGE} Líneas base a actualizar: ${project.replanning.baselines.map((b) => BASELINE_LABEL[b]).join(", ")}.`,
+      severity: "rojo",
+    });
+  }
+  const pendingCr = project.change_requests.filter(isCrOpen);
+  if (pendingCr.length) {
+    alerts.push({
+      id: "cr-pendientes",
+      title: `${pendingCr.length} solicitud(es) de cambio sin resolver`,
+      detail: "Completa la escalera de control de cambios hasta la decisión y la comunicación.",
+      href: "/cuestionario/solicitud-cambio",
+      linkLabel: "Ver cambios",
+    });
+  }
+  for (const i of project.incidents.filter((x) => x.status !== "Resuelto" && x.severity === "Crítica")) {
+    alerts.push({
+      id: `inc-${i.id}`,
+      title: `Incidente crítico abierto: ${i.title}`,
+      detail: `Responsable: ${i.assigned_to}.`,
+      href: "/cuestionario/registro-incidentes",
+      linkLabel: "Ver incidentes",
+      severity: "rojo",
+    });
+  }
+  const cont = contingencyStatus(project);
+  if (cont.reserve > 0 && cont.available < 0) {
+    alerts.push({
+      id: "contingencia",
+      title: "Reserva de contingencia agotada",
+      detail: "El uso supera la reserva dentro de la línea base: usar reserva de gestión requiere aprobación del Patrocinador o CCB (Solicitud de Cambio).",
+      href: "/cuestionario/solicitud-cambio",
+      linkLabel: "Solicitar cambio",
+      severity: "rojo",
     });
   }
   const period = requiredReportPeriod(project);

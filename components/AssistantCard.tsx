@@ -10,7 +10,7 @@ const shell =
 const interactive = "hover:shadow-lg focus-visible:ring-4 focus-visible:ring-kruger-orange/40";
 
 /** Tarjeta central del Asistente: lee los estados y propone la siguiente acción. */
-export function AssistantCard({ data, onAdvance }: { data: AssistantMessage; onAdvance: () => void }) {
+export function AssistantCard({ data, onAdvance, onClose }: { data: AssistantMessage; onAdvance: () => void; onClose?: () => void }) {
   const cta = data.cta;
   const body = (
     <>
@@ -54,9 +54,9 @@ export function AssistantCard({ data, onAdvance }: { data: AssistantMessage; onA
         {body}
       </Link>
     );
-  if (cta?.kind === "advance")
+  if (cta?.kind === "advance" || cta?.kind === "close")
     return (
-      <button type="button" onClick={onAdvance} className={`${shell} ${interactive}`}>
+      <button type="button" onClick={cta.kind === "close" ? onClose : onAdvance} className={`${shell} ${interactive}`}>
         {body}
       </button>
     );

@@ -32,7 +32,7 @@ export function ExecutionBoard() {
 }
 
 function Board({ project }: { project: Project }) {
-  const started = ["ejecucion", "control", "cierre"].includes(project.current_phase);
+  const started = ["ejecucion", "control", "cierre"].includes(project.current_phase) || !!project.replanning;
   if (!started)
     return (
       <div className={clsx(card, "flex items-start gap-3")}>
@@ -85,6 +85,7 @@ function WorkPackages({ project }: { project: Project }) {
   const { setWpProgress } = useProject();
   const items = trackedItems(project);
   const missing = requiredReportPeriod(project);
+  const blocked = !!missing || !!project.replanning;
   const [qc, setQc] = useState<{ id: string; by: string; date: string } | null>(null);
 
   return (
@@ -100,6 +101,12 @@ function WorkPackages({ project }: { project: Project }) {
           <Link href="/cuestionario/informe-desempeno" className={btnPrimary}>
             Generar informe
           </Link>
+        </div>
+      )}
+      {project.replanning && (
+        <div role="alert" className="mt-4 flex gap-2 rounded-xl border border-semaforo-rojo/30 bg-semaforo-rojo/5 p-4 text-sm text-kruger-dark">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-semaforo-rojo" />
+          Replanificación en curso: la ejecución de tareas está bloqueada hasta aprobar de nuevo las líneas base modificadas.
         </div>
       )}
       {items.length === 0 && <p className="mt-4 text-sm text-kruger-dark/60">No hay paquetes de trabajo registrados en el asistente.</p>}
@@ -123,7 +130,7 @@ function WorkPackages({ project }: { project: Project }) {
                     <button
                       key={st}
                       type="button"
-                      disabled={!!missing}
+                      disabled={blocked}
                       aria-pressed={pr.status === st}
                       onClick={() =>
                         st === "Completado"

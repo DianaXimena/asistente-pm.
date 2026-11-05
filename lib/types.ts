@@ -20,7 +20,12 @@ export type QuestionnaireId =
   | "lecciones-aprendidas"
   | "asignacion-recursos"
   | "informe-desempeno"
-  | "solicitud-cambio";
+  | "registro-evm"
+  | "registro-incidentes"
+  | "solicitud-cambio"
+  | "aceptacion-entregables"
+  | "cierre-contratos"
+  | "archivo-lecciones";
 
 export interface MandatoryInput {
   artifact_name: string;
@@ -289,6 +294,140 @@ export interface Impediment {
   created_at: string;
 }
 
+/* ---------- Control ---------- */
+
+export type Severity = "Crítica" | "Alta" | "Media" | "Baja";
+
+export interface Incident {
+  id: string;
+  title: string;
+  description: string;
+  severity: Severity | "";
+  assigned_to: string;
+  reported_date: string;
+  derived_from_risk_id?: string;
+  status: "Abierto" | "En resolución" | "Resuelto";
+  /** ¿El plan de respuesta registrado fue suficiente para contener el impacto? */
+  plan_sufficient: boolean | null;
+  executed_action: string;
+  contingency_used: string;
+  baseline_impacted: boolean;
+  change_request_id?: string;
+  resolution: string;
+}
+
+export type ChangeType = "Acción Preventiva" | "Acción Correctiva" | "Reparación de Defectos" | "Actualización";
+export type BaselineId = "linea-base-alcance" | "linea-base-cronograma" | "linea-base-costos";
+
+export interface ChangeImpact {
+  scope: string;
+  schedule_days: string;
+  critical_path: boolean | null;
+  cost_amount: string;
+  quality: string;
+  resources: string;
+  risks: string;
+  benefits: string;
+}
+
+export type ChangeStatus =
+  | "En análisis"
+  | "Resuelto sin cambio de línea base"
+  | "Pendiente de decisión"
+  | "Aprobada"
+  | "Rechazada"
+  | "Diferida";
+
+export interface ChangeRequest {
+  id: string;
+  what: string;
+  requester: string;
+  type: ChangeType | "";
+  origin: "Escrito" | "Verbal" | "";
+  written_file: string;
+  /** Cumplimiento regulatorio: no se negocia ni se rechaza. */
+  regulatory: boolean;
+  impact: ChangeImpact;
+  consulted: string;
+  conversation: string;
+  alternative_found: boolean | null;
+  alternative_detail: string;
+  alternative_justification: string;
+  baselines_affected: BaselineId[];
+  route: "PM" | "CCB" | "";
+  decision: "Aprobada" | "Rechazada" | "Diferida" | "";
+  decision_by: string;
+  decision_date: string;
+  decision_notes: string;
+  communicated: boolean;
+  status: ChangeStatus;
+  derived_from_incident_id?: string;
+  created_at: string;
+}
+
+/* ---------- Cierre ---------- */
+
+export interface DeliverableAcceptance {
+  accepted_by: string;
+  acceptance_date: string;
+  acceptance_file: string;
+  ops_owner: string;
+  maintenance_plan: string;
+  benefit_metrics: string;
+}
+
+export interface Contract {
+  id: string;
+  name: string;
+  supplier: string;
+  deliverables_ok: boolean;
+  final_payment: boolean;
+  audit_done: boolean;
+  open_claims: boolean | null;
+  closure_file: string;
+}
+
+export interface Closure {
+  acceptance: Record<string, DeliverableAcceptance>;
+  contracts: Contract[];
+  contracts_confirmed: boolean;
+  final_cost: string;
+  docs_archived: boolean;
+  resources_released: boolean;
+  lesson_tags: Record<string, string>;
+  opa_folder: string;
+  retrospective_date: string;
+  retrospective_participants: string;
+  lessons_archived: boolean;
+  closed_at?: string;
+}
+
+/* ---------- Transversales ---------- */
+
+export interface ChangeReadiness {
+  sponsorship: number;
+  capacity: number;
+  incentives: number;
+  understanding: number;
+  notes: string;
+  assessed_at: string;
+}
+
+export interface MeetingTask {
+  task: string;
+  owner: string;
+  due: string;
+}
+
+export interface Meeting {
+  id: string;
+  date: string;
+  title: string;
+  attendees: string;
+  decisions: string;
+  tasks: MeetingTask[];
+}
+
 export interface Project {
   project_id: string;
   client_name: string;
@@ -318,6 +457,17 @@ export interface Project {
   impediments: Impediment[];
   /** Umbral de escalamiento a gobernanza configurado en el proyecto. */
   escalation_threshold?: { amount: string; days: string };
+  incidents: Incident[];
+  incident_register_reviewed?: boolean;
+  change_requests: ChangeRequest[];
+  change_log_reviewed?: boolean;
+  /** Autoridad delegada del PM para decidir cambios sin CCB (costo en USD y días). */
+  pm_authority_limit?: { amount: string; days: string };
+  /** Replanificación por cambio aprobado que modifica líneas base. */
+  replanning?: { cr_id: string; resume_phase: PhaseId; baselines: BaselineId[] };
+  closure?: Closure;
+  change_readiness?: ChangeReadiness;
+  meetings: Meeting[];
 }
 
 /** Semáforo visual del motor de fases: Verde completo, Ámbar pendiente, Rojo bloqueante. */

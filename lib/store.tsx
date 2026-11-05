@@ -4,11 +4,19 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { calcInicioProgress } from "./acta";
 import { canAdvance } from "./assistant";
 import { createProject, normalizeProject } from "./project-factory";
-import { executionStats, isLessonComplete } from "./execution";
+import { closureStats, closureOf, isAdminClosed, isContractClosed } from "./closure";
+import { isCrOpen } from "./control";
+import { executionStats, isLessonComplete, requiredReportPeriod } from "./execution";
 import { isRiskComplete } from "./planning";
 import { isStakeholderComplete } from "./stakeholders";
 import type {
   ActaFormData,
+  BaselineId,
+  ChangeReadiness,
+  ChangeRequest,
+  Closure,
+  Incident,
+  Meeting,
   Approach,
   CostBaseline,
   FirstInput,
@@ -48,6 +56,11 @@ export function findInput(p: Project, q: QuestionnaireId): MandatoryInput | unde
   return p.phases.flatMap((ph) => ph.mandatory_inputs).find((i) => i.questionnaire === q);
 }
 
+/** Asigna el estado salvo que el insumo se haya completado con archivo (queda Aprobado). */
+function patchStatusUnlessFile(p: Project, q: QuestionnaireId, status: InputStatus): Project {
+  return setInputStatus(p, q, findInput(p, q)?.source === "archivo" ? "Aprobado" : status);
+}
+
 /** Registro con lista de ítems: Aprobado si el PM lo confirmó y todo está completo; si no, En Progreso. */
 function registerStatus(p: Project, q: QuestionnaireId, count: number, allComplete: boolean, approved: boolean): InputStatus {
   if (findInput(p, q)?.source === "archivo") return "Aprobado";
@@ -64,7 +77,8 @@ const approvedRatio = (ph: Phase) =>
  * - % de Inicio: Campos Acta (70%) + Interesados (30%).
  * - % de Planificación: Σ insumos aprobados / 4 × 100.
  * - % de Ejecución: (% paquetes en ejecución + % entregables completados) / 2.
- *   (Control y Cierre usarán sus fórmulas propias cuando se construyan.)
+ * - % de Control: (Mediciones EVM al día + % Incidentes cerrados o atendidos) / 2.
+ * - % de Cierre: (Entregables aceptados + Contratos cerrados + Lecciones archivadas) / 3.
  */
 function recompute(input: Project): Project {
   const stkComplete = input.stakeholders.every(isStakeholderComplete);
@@ -83,6 +97,25 @@ function recompute(input: Project): Project {
   const lessonsOpen = p.lessons.some(isLessonComplete);
   p = setInputStatus(p, "lecciones-aprendidas", registerStatus(p, "lecciones-aprendidas", lessonsOpen ? 1 : 0, true, lessonsOpen));
   p = setInputStatus(p, "informe-desempeno", registerStatus(p, "informe-desempeno", p.reports.length, true, true));
+  // Control
+  const evmOk = p.reports.length > 0 && !requiredReportPeriod(p);
+  p = patchStatusUnlessFile(p, "registro-evm", evmOk ? "Aprobado" : p.reports.length ? "En Progreso" : "No Iniciado");
+  const attended = p.incidents.filter((i) => i.status !== "Abierto").length;
+  const incOk = !!p.incident_register_reviewed && attended === p.incidents.length;
+  p = patchStatusUnlessFile(p, "registro-incidentes", incOk ? "Aprobado" : p.incidents.length ? "En Progreso" : "No Iniciado");
+  const crOk = !!p.change_log_reviewed && !p.change_requests.some(isCrOpen) && !p.replanning;
+  p = patchStatusUnlessFile(p, "solicitud-cambio", crOk ? "Aprobado" : p.change_requests.length ? "En Progreso" : "No Iniciado");
+  const pctEvm = evmOk ? 1 : 0;
+  const pctInc = p.incidents.length ? attended / p.incidents.length : p.incident_register_reviewed ? 1 : 0;
+  const control = Math.round(((pctEvm + pctInc) / 2) * 100);
+  // Cierre
+  const cs = closureStats(p);
+  const c = closureOf(p);
+  p = patchStatusUnlessFile(p, "aceptacion-entregables", cs.rows.length && cs.accepted === 1 ? "Aprobado" : cs.accepted > 0 ? "En Progreso" : "No Iniciado");
+  const contractsOk = c.contracts_confirmed && c.contracts.every(isContractClosed) && isAdminClosed(c);
+  p = patchStatusUnlessFile(p, "cierre-contratos", contractsOk ? "Aprobado" : c.contracts.length || c.final_cost ? "En Progreso" : "No Iniciado");
+  p = patchStatusUnlessFile(p, "archivo-lecciones", c.lessons_archived ? "Aprobado" : Object.keys(c.lesson_tags).length ? "En Progreso" : "No Iniciado");
+
   const inicio = calcInicioProgress(p);
   const ejecucion = executionStats(p).progress;
 
@@ -92,7 +125,15 @@ function recompute(input: Project): Project {
       if (ph.status === "Completada") return { ...ph, progress_percentage: 100 };
       if (ph.status !== "En Progreso") return ph;
       const progress =
-        ph.id === "inicio" ? inicio : ph.id === "ejecucion" ? ejecucion : Math.round(approvedRatio(ph) * 100);
+        ph.id === "inicio"
+          ? inicio
+          : ph.id === "ejecucion"
+            ? ejecucion
+            : ph.id === "control"
+              ? control
+              : ph.id === "cierre"
+                ? closureStats(p).progress
+                : Math.round(approvedRatio(ph) * 100);
       return { ...ph, progress_percentage: progress };
     }),
   };
@@ -127,6 +168,20 @@ interface ProjectStore {
   saveImpediment: (i: Impediment) => void;
   removeImpediment: (id: string) => void;
   setEscalationThreshold: (t: { amount: string; days: string }) => void;
+  saveIncident: (i: Incident) => void;
+  removeIncident: (id: string) => void;
+  reviewIncidentRegister: () => void;
+  saveChangeRequest: (cr: ChangeRequest) => void;
+  removeChangeRequest: (id: string) => void;
+  reviewChangeLog: () => void;
+  setPmAuthorityLimit: (l: { amount: string; days: string }) => void;
+  /** Cambio aprobado que modifica líneas base: retrocede a Planificación (Replanificación). */
+  startReplanning: (crId: string, baselines: BaselineId[]) => void;
+  saveClosure: (patch: Partial<Closure>) => void;
+  closeProject: () => void;
+  saveChangeReadiness: (c: ChangeReadiness) => void;
+  saveMeeting: (m: Meeting) => void;
+  removeMeeting: (id: string) => void;
   advancePhase: () => void;
   reset: () => void;
 }
@@ -286,10 +341,88 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     [mutate],
   );
 
+  const saveIncident = useCallback(
+    (i: Incident) =>
+      mutate((p) => ({
+        ...patchInput(p, "registro-incidentes", { source: "cuestionario", file_name: undefined }),
+        incidents: upsert(p.incidents, i, (x) => x.id),
+      })),
+    [mutate],
+  );
+  const removeIncident = useCallback((id: string) => mutate((p) => ({ ...p, incidents: p.incidents.filter((x) => x.id !== id) })), [mutate]);
+  const reviewIncidentRegister = useCallback(() => mutate((p) => ({ ...p, incident_register_reviewed: true })), [mutate]);
+  const saveChangeRequest = useCallback(
+    (cr: ChangeRequest) =>
+      mutate((p) => ({
+        ...patchInput(p, "solicitud-cambio", { source: "cuestionario", file_name: undefined }),
+        change_requests: upsert(p.change_requests, cr, (x) => x.id),
+      })),
+    [mutate],
+  );
+  const removeChangeRequest = useCallback(
+    (id: string) => mutate((p) => ({ ...p, change_requests: p.change_requests.filter((x) => x.id !== id) })),
+    [mutate],
+  );
+  const reviewChangeLog = useCallback(() => mutate((p) => ({ ...p, change_log_reviewed: true })), [mutate]);
+  const setPmAuthorityLimit = useCallback((l: { amount: string; days: string }) => mutate((p) => ({ ...p, pm_authority_limit: l })), [mutate]);
+  const startReplanning = useCallback(
+    (crId: string, baselines: BaselineId[]) =>
+      mutate((p) => {
+        if (baselines.length === 0 || p.replanning) return p;
+        const resume = p.current_phase;
+        const planIdx = p.phases.findIndex((x) => x.id === "planificacion");
+        const resumeIdx = p.phases.findIndex((x) => x.id === resume);
+        let next: Project = {
+          ...p,
+          replanning: { cr_id: crId, resume_phase: resume, baselines },
+          current_phase: "planificacion",
+          phases: p.phases.map((ph, i) =>
+            i === planIdx ? { ...ph, status: "En Progreso" } : i > planIdx && i <= resumeIdx ? { ...ph, status: "Bloqueada" } : ph,
+          ),
+        };
+        for (const b of baselines) next = setInputStatus(next, b, "En Progreso");
+        return next;
+      }),
+    [mutate],
+  );
+  const saveClosure = useCallback(
+    (patch: Partial<Closure>) => mutate((p) => ({ ...p, closure: { ...closureOf(p), ...patch } })),
+    [mutate],
+  );
+  const closeProject = useCallback(
+    () =>
+      mutate((p) => {
+        const ph = p.phases.find((x) => x.id === "cierre");
+        if (p.current_phase !== "cierre" || !ph || !ph.mandatory_inputs.every((i) => i.status === "Aprobado")) return p;
+        return {
+          ...p,
+          closure: { ...closureOf(p), closed_at: new Date().toISOString() },
+          phases: p.phases.map((x) => (x.id === "cierre" ? { ...x, status: "Completada" } : x)),
+        };
+      }),
+    [mutate],
+  );
+  const saveChangeReadiness = useCallback((c: ChangeReadiness) => mutate((p) => ({ ...p, change_readiness: c })), [mutate]);
+  const saveMeeting = useCallback((m: Meeting) => mutate((p) => ({ ...p, meetings: upsert(p.meetings, m, (x) => x.id) })), [mutate]);
+  const removeMeeting = useCallback((id: string) => mutate((p) => ({ ...p, meetings: p.meetings.filter((x) => x.id !== id) })), [mutate]);
+
   const advancePhase = useCallback(
     () =>
       mutate((p) => {
         if (!canAdvance(p)) return p;
+        // Fin de la replanificación: vuelve a la fase desde la que se retrocedió.
+        if (p.replanning && p.current_phase === "planificacion") {
+          const planIdx = p.phases.findIndex((x) => x.id === "planificacion");
+          const resumeIdx = p.phases.findIndex((x) => x.id === p.replanning!.resume_phase);
+          return {
+            ...p,
+            replanning: undefined,
+            current_phase: p.replanning.resume_phase,
+            phases: p.phases.map((ph, i) =>
+              i >= planIdx && i < resumeIdx ? { ...ph, status: "Completada" } : i === resumeIdx ? { ...ph, status: "En Progreso" } : ph,
+            ),
+          };
+        }
         const idx = p.phases.findIndex((x) => x.id === p.current_phase);
         const next = p.phases[idx + 1];
         if (!next) return p;
@@ -340,6 +473,19 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       saveImpediment,
       removeImpediment,
       setEscalationThreshold,
+      saveIncident,
+      removeIncident,
+      reviewIncidentRegister,
+      saveChangeRequest,
+      removeChangeRequest,
+      reviewChangeLog,
+      setPmAuthorityLimit,
+      startReplanning,
+      saveClosure,
+      closeProject,
+      saveChangeReadiness,
+      saveMeeting,
+      removeMeeting,
       advancePhase,
       reset,
     }),
@@ -368,6 +514,19 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       saveImpediment,
       removeImpediment,
       setEscalationThreshold,
+      saveIncident,
+      removeIncident,
+      reviewIncidentRegister,
+      saveChangeRequest,
+      removeChangeRequest,
+      reviewChangeLog,
+      setPmAuthorityLimit,
+      startReplanning,
+      saveClosure,
+      closeProject,
+      saveChangeReadiness,
+      saveMeeting,
+      removeMeeting,
       advancePhase,
       reset,
     ],

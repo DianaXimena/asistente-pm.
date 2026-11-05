@@ -52,8 +52,8 @@ export function initialPhases(): Phase[] {
       status: "No Iniciada",
       progress_percentage: 0,
       mandatory_inputs: [
-        { artifact_name: "Registro mensual de CPI y SPI", status: "No Iniciado" },
-        { artifact_name: "Registro de Incidentes", status: "No Iniciado" },
+        { artifact_name: "Registro mensual de CPI y SPI", status: "No Iniciado", questionnaire: "registro-evm" },
+        { artifact_name: "Registro de Incidentes", status: "No Iniciado", questionnaire: "registro-incidentes" },
         { artifact_name: "Registro de Cambios (resoluciones CCB)", status: "No Iniciado", questionnaire: "solicitud-cambio" },
       ],
     },
@@ -63,9 +63,9 @@ export function initialPhases(): Phase[] {
       status: "No Iniciada",
       progress_percentage: 0,
       mandatory_inputs: [
-        { artifact_name: "Aceptación Formal del Cliente", status: "No Iniciado" },
-        { artifact_name: "Cierre de Contratos", status: "No Iniciado" },
-        { artifact_name: "Archivo de Lecciones Aprendidas", status: "No Iniciado" },
+        { artifact_name: "Aceptación Formal del Cliente", status: "No Iniciado", questionnaire: "aceptacion-entregables" },
+        { artifact_name: "Cierre de Contratos", status: "No Iniciado", questionnaire: "cierre-contratos" },
+        { artifact_name: "Archivo de Lecciones Aprendidas", status: "No Iniciado", questionnaire: "archivo-lecciones" },
       ],
     },
   ];
@@ -88,6 +88,9 @@ export function createProject(clientName: string, projectName: string): Project 
     wp_progress: {},
     reports: [],
     impediments: [],
+    incidents: [],
+    change_requests: [],
+    meetings: [],
   };
 }
 
@@ -104,6 +107,9 @@ export function normalizeProject(p: Project): Project {
     wp_progress: p.wp_progress ?? {},
     reports: p.reports ?? [],
     impediments: p.impediments ?? [],
+    incidents: p.incidents ?? [],
+    change_requests: p.change_requests ?? [],
+    meetings: p.meetings ?? [],
     phases: template.map((tph) => {
       const stored = p.phases.find((x) => x.id === tph.id);
       if (!stored) return tph;
