@@ -26,6 +26,7 @@ import type {
   InputStatus,
   MandatoryInput,
   Phase,
+  PhaseId,
   Project,
   Impediment,
   Lesson,
@@ -186,7 +187,10 @@ interface ProjectStore {
   projects: Project[];
   selectProject: (id: string) => void;
   hydrated: boolean;
-  create: (clientName: string, projectName: string) => void;
+  /** Crea el proyecto y devuelve su ID. */
+  create: (clientName: string, projectName: string) => string;
+  /** Registra las carpetas de Google Drive de un proyecto (por ID, no solo el activo). */
+  setDriveFolders: (projectId: string, phaseId: PhaseId, folders: { client: string; project: string; phase: string }) => void;
   setApproach: (approach: Approach, firstInput: FirstInput) => void;
   submitActa: (data: ActaFormData) => void;
   signActa: () => void;
@@ -194,7 +198,7 @@ interface ProjectStore {
   removeStakeholder: (id: string) => void;
   approveStakeholderRegister: () => void;
   /** Omite el cuestionario adjuntando el documento (obligatorio para omitir). */
-  attachFile: (q: QuestionnaireId, fileName: string) => void;
+  attachFile: (q: QuestionnaireId, fileName: string, fileUrl?: string) => void;
   saveScope: (scope: ScopeBaseline) => void;
   saveSchedule: (schedule: ScheduleBaseline) => void;
   saveCosts: (costs: CostBaseline) => void;
@@ -445,7 +449,21 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     (client: string, name: string) => {
       const p = createProject(client, name);
       setProject(recompute(appendAudit(p, "Proyecto creado", "Proyecto", p.project_id, `${p.client_name} · ${p.project_name}`)));
+      return p.project_id;
     },
+    [],
+  );
+
+  const setDriveFolders = useCallback(
+    (projectId: string, phaseId: PhaseId, f: { client: string; project: string; phase: string }) =>
+      setState((s) => ({
+        ...s,
+        projects: s.projects.map((x) =>
+          x.project_id !== projectId
+            ? x
+            : { ...x, drive_folder: { client_url: f.client, project_url: f.project, phases: { ...(x.drive_folder?.phases ?? {}), [phaseId]: f.phase } } },
+        ),
+      })),
     [],
   );
 
@@ -500,7 +518,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   );
 
   const attachFile = useCallback(
-    (q: QuestionnaireId, fileName: string) =>
+    (q: QuestionnaireId, fileName: string, fileUrl?: string) =>
       mutate((p) =>
         lockInfo(p, q).locked
           ? p
@@ -508,6 +526,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
               patchInput(p, q, {
                 source: "archivo",
                 file_name: fileName,
+                file_url: fileUrl,
                 // El Acta cargada sigue requiriendo la confirmación de firma del Patrocinador.
                 status: q === "acta-constitucion" ? "Pendiente de Firma" : "Aprobado",
               }),
@@ -787,6 +806,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       localOnly,
       uploadLocal,
       discardLocal,
+      setDriveFolders,
       project,
       projects: state.projects,
       selectProject,
@@ -841,6 +861,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       localOnly,
       uploadLocal,
       discardLocal,
+      setDriveFolders,
       project,
       state.projects,
       selectProject,

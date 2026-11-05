@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight, FileUp, Sparkles } from "lucide-react";
 import { APPROACH_LABEL } from "@/lib/assistant";
 import { DOC_TYPES, approachFromDocType, approachFromMicroEvaluator, suggestDocType } from "@/lib/approach";
 import { useProject } from "@/lib/store";
+import { DRIVE_ERRORS, uploadToPhase } from "@/lib/drive-upload";
 import type { Approach, InitialDocType } from "@/lib/types";
 import { RequireProject } from "../RequireProject";
 import { Field, inputClass } from "../acta/fields";
@@ -20,7 +21,10 @@ export function FirstInputWizard() {
 }
 
 function Wizard() {
-  const { project, setApproach } = useProject();
+  const { project, setApproach, setDriveFolders } = useProject();
+  const [fileObj, setFileObj] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [driveError, setDriveError] = useState("");
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<Stage>("upload");
@@ -34,6 +38,7 @@ function Wizard() {
   const onFile = (f: File | undefined) => {
     if (!f) return;
     const s = suggestDocType(f.name);
+    setFileObj(f);
     setFileName(f.name);
     setSuggested(s);
     setDocType(s);
@@ -46,10 +51,23 @@ function Wizard() {
     setStage("result");
   };
 
-  const confirm = () => {
+  const finish = (fileUrl?: string) => {
     if (!result || !docType) return;
-    setApproach(result, { file_name: fileName, doc_type: docType, received_at: new Date().toISOString() });
+    setApproach(result, { file_name: fileName, doc_type: docType, received_at: new Date().toISOString(), file_url: fileUrl });
     router.push("/proyecto");
+  };
+
+  /** Guarda el primer insumo en Google Drive (Cliente / Proyecto / Iniciación) y continúa. */
+  const confirm = async () => {
+    if (!result || !docType || !project) return;
+    setSaving(true);
+    setDriveError("");
+    const r = await uploadToPhase(project, "inicio", fileObj ? [fileObj] : []);
+    setSaving(false);
+    if (r.folders) setDriveFolders(project.project_id, "inicio", r.folders);
+    const url = r.files?.find((f) => f.ok)?.url;
+    if (r.ok || r.error === "not_configured") return finish(url);
+    setDriveError(DRIVE_ERRORS[r.error ?? ""] ?? r.files?.find((f) => !f.ok)?.error ?? "No se pudo guardar el archivo en Google Drive.");
   };
 
   return (
@@ -171,10 +189,18 @@ function Wizard() {
             <button type="button" onClick={() => setStage("upload")} className={btnSecondary}>
               Corregir
             </button>
-            <button type="button" onClick={confirm} className={btnPrimary}>
-              Confirmar e ir al Dashboard <ArrowRight className="h-4 w-4" />
+            <button type="button" onClick={confirm} disabled={saving} className={btnPrimary}>
+              {saving ? "Guardando en Google Drive…" : "Confirmar e ir al Dashboard"} <ArrowRight className="h-4 w-4" />
             </button>
           </div>
+          {driveError && (
+            <p role="alert" className="mt-3 rounded-xl bg-semaforo-rojo/5 px-3 py-2 text-sm text-semaforo-rojo">
+              {driveError}{" "}
+              <button type="button" className="font-medium underline" onClick={() => finish()}>
+                Continuar sin guardar en Drive
+              </button>
+            </p>
+          )}
         </div>
       )}
     </div>

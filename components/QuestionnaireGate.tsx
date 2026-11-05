@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, ClipboardList, FilePlus2, FileUp, History, LayoutDashboard, Lock, ShieldCheck, SkipForward } from "lucide-react";
 import { lockInfo } from "@/lib/locks";
+import { DRIVE_ERRORS, phaseOfInput, uploadToPhase } from "@/lib/drive-upload";
 import { missingRequirements } from "@/lib/assistant";
 import { QUESTIONNAIRES } from "@/lib/questionnaires";
 import { findInput, useProject } from "@/lib/store";
@@ -47,7 +48,7 @@ function Gate({
   children: (project: Project) => React.ReactNode;
   readOnlyView?: (project: Project) => React.ReactNode;
 }) {
-  const { attachFile } = useProject();
+  const { attachFile, setDriveFolders } = useProject();
   const input = findInput(project, id);
   const [mode, setMode] = useState<"auto" | "form" | "replace">("auto");
   const meta = QUESTIONNAIRES[id];
@@ -70,7 +71,18 @@ function Gate({
                   Sello del sistema: {new Date(lock.approvedAt).toLocaleString("es-EC", { dateStyle: "long", timeStyle: "medium" })}
                 </p>
               )}
-              {input.source === "archivo" && <p className="mt-1 break-all text-xs text-kruger-dark/60">Documento: {input.file_name}</p>}
+              {input.source === "archivo" && (
+                <p className="mt-1 break-all text-xs text-kruger-dark/60">
+                  Documento:{" "}
+                  {input.file_url ? (
+                    <a href={input.file_url} target="_blank" rel="noreferrer" className="text-kruger-orange hover:underline">
+                      {input.file_name}
+                    </a>
+                  ) : (
+                    input.file_name
+                  )}
+                </p>
+              )}
             </div>
           </div>
           <div className="mt-6 flex flex-wrap gap-3 border-t border-kruger-gray/20 pt-6">
@@ -101,7 +113,15 @@ function Gate({
           <div className="min-w-0">
             <p className="text-sm font-semibold text-kruger-dark">Cuestionario omitido con documento adjunto</p>
             <p className="mt-1 break-all text-sm text-kruger-dark/70">
-              Archivo: <strong>{input.file_name}</strong> · Estado: {input.status}
+              Archivo:{" "}
+              {input.file_url ? (
+                <a href={input.file_url} target="_blank" rel="noreferrer" className="font-semibold text-kruger-orange hover:underline">
+                  {input.file_name}
+                </a>
+              ) : (
+                <strong>{input.file_name}</strong>
+              )}{" "}
+              · Estado: {input.status}
             </p>
           </div>
         </div>
@@ -161,18 +181,30 @@ function Gate({
       </div>
 
       <SkipCard
-        onSkip={(name) => {
-          attachFile(id, name);
-          setMode("auto");
+        onSkip={async (f) => {
+          const phaseId = phaseOfInput(project, id);
+          const r = await uploadToPhase(project, phaseId, [f]);
+          if (r.folders) setDriveFolders(project.project_id, phaseId, r.folders);
+          const saved = r.files?.find((x) => x.ok);
+          if (saved || r.error === "not_configured") {
+            attachFile(id, f.name, saved?.url);
+            setMode("auto");
+            return null;
+          }
+          return DRIVE_ERRORS[r.error ?? ""] ?? r.files?.find((x) => !x.ok)?.error ?? "No se pudo guardar el archivo en Google Drive.";
         }}
       />
     </div>
   );
 }
 
-function SkipCard({ onSkip }: { onSkip: (fileName: string) => void }) {
+/** onSkip sube el archivo y devuelve null si todo salió bien, o el mensaje de error. */
+function SkipCard({ onSkip }: { onSkip: (file: File) => Promise<string | null> }) {
   const ref = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState("");
+  const [fileObj, setFileObj] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const file = fileObj?.name ?? "";
   return (
     <div className={`${card} flex flex-col`}>
       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-kruger-gray-soft text-kruger-dark/70">
@@ -190,10 +222,28 @@ function SkipCard({ onSkip }: { onSkip: (fileName: string) => void }) {
         <FileUp className="h-6 w-6 text-kruger-orange" />
         <span className="break-all text-sm font-medium text-kruger-dark">{file || "Seleccionar archivo"}</span>
       </button>
-      <input ref={ref} type="file" className="sr-only" aria-label="Documento para omitir el cuestionario" onChange={(e) => setFile(e.target.files?.[0]?.name ?? "")} />
-      <button type="button" disabled={!file} onClick={() => onSkip(file)} className={`${btnSecondary} mt-4 disabled:cursor-not-allowed disabled:opacity-50`}>
-        <SkipForward className="h-4 w-4" /> Omitir cuestionario
+      <input ref={ref} type="file" className="sr-only" aria-label="Documento para omitir el cuestionario" onChange={(e) => setFileObj(e.target.files?.[0] ?? null)} />
+      <button
+        type="button"
+        disabled={!file || busy}
+        onClick={async () => {
+          if (!fileObj) return;
+          setBusy(true);
+          setError("");
+          const err = await onSkip(fileObj);
+          setBusy(false);
+          if (err) setError(err);
+        }}
+        className={`${btnSecondary} mt-4 disabled:cursor-not-allowed disabled:opacity-50`}
+      >
+        <SkipForward className="h-4 w-4" /> {busy ? "Guardando en Google Drive…" : "Omitir cuestionario"}
       </button>
+      <p className="mt-2 text-xs text-kruger-dark/55">El documento se guarda en Drive en la carpeta Cliente / Proyecto / Fase.</p>
+      {error && (
+        <p role="alert" className="mt-2 rounded-xl bg-semaforo-rojo/5 px-3 py-2 text-xs text-semaforo-rojo">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -35,6 +35,7 @@ export function PhaseChecklist({ project, phase, isCurrent }: { project: Project
                 {input.source === "archivo" && input.file_name && (
                   <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-kruger-dark/55">
                     <Paperclip className="h-3 w-3 shrink-0" /> {input.file_name}
+                    {input.file_url && <span className="text-kruger-orange">· en Drive</span>}
                   </span>
                 )}
                 {isWaiting(project, input) && (

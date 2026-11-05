@@ -9,6 +9,8 @@ import { APPROACH_LABEL, getCurrentPhase, getOverallProgress } from "@/lib/assis
 import { PHASE_TOOLTIPS } from "@/lib/pmp";
 import { indexHealth, performanceVsBaseline, type Health } from "@/lib/portfolio";
 import { useProject } from "@/lib/store";
+import { uploadToPhase } from "@/lib/drive-upload";
+import { initialPhases } from "@/lib/project-factory";
 import type { Project } from "@/lib/types";
 import { Field, inputClass } from "../acta/fields";
 import { ProgressBar } from "../ProgressBar";
@@ -21,7 +23,7 @@ import { btnPrimary, btnSecondary } from "../ui";
 export const SERIES = { pv: "#1F6FB2", ev: "#F05A22", ac: "#1A9E8F" };
 
 export function Portfolio() {
-  const { projects, hydrated, create, selectProject, localOnly, uploadLocal, discardLocal, sync, owners, me } = useProject();
+  const { projects, hydrated, create, selectProject, localOnly, uploadLocal, discardLocal, sync, owners, me, setDriveFolders } = useProject();
   const [uploading, setUploading] = useState(false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -72,7 +74,11 @@ export function Portfolio() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!valid) return setTouched(true);
-              create(client, name);
+              const id = create(client, name);
+              // Registro del proyecto: crea (o reutiliza) Cliente / Proyecto / Iniciación en Google Drive.
+              uploadToPhase({ client_name: client.trim(), project_name: name.trim(), phases: initialPhases() }, "inicio").then((r) => {
+                if (r.folders) setDriveFolders(id, "inicio", r.folders);
+              });
               router.push("/nuevo/insumo");
             }}
             className="origin-top animate-expand rounded-2xl border border-kruger-orange/30 bg-white p-6 shadow-card"

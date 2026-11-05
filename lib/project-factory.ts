@@ -131,7 +131,7 @@ export function normalizeProject(p: Project): Project {
         phase_name: tph.phase_name,
         mandatory_inputs: tph.mandatory_inputs.map((ti) => {
           const si = stored.mandatory_inputs.find((x) => x.artifact_name === ti.artifact_name);
-          return si ? { ...ti, status: si.status, source: si.source, file_name: si.file_name } : ti;
+          return si ? { ...ti, status: si.status, source: si.source, file_name: si.file_name, file_url: si.file_url } : ti;
         }),
       };
     }),

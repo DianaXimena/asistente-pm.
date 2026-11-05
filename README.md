@@ -60,6 +60,13 @@ la tabla `template_documents`. Es idempotente: si se repite, no duplica. Variabl
 `GOOGLE_APPS_SCRIPT_TOKEN`.
 Guía de instalación: [`google-apps-script/README.md`](./google-apps-script/README.md).
 
+## Carpetas de proyectos en Google Drive
+
+Al registrar un proyecto, cargar el primer insumo u omitir un cuestionario con documento, la app crea (o
+reutiliza) en Drive la ruta **Cliente / Proyecto / Fase** dentro de la carpeta `1qr8xOeGgvwJSuJJPFzdNaqZxSKL1gClt`
+y guarda allí los archivos (`/api/drive/files` → `google-apps-script/Carpetas.gs`). El detalle del proyecto muestra
+"Carpeta en Drive" y cada documento adjunto enlaza a su archivo.
+
 ## Flujo actual
 
 1. **Nuevo proyecto** (botón en el portafolio): nombre del cliente y del proyecto.

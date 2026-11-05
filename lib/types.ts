@@ -38,6 +38,8 @@ export interface MandatoryInput {
   /** Cómo se completó: con el cuestionario o adjuntando el documento (cuestionario omitido). */
   source?: "cuestionario" | "archivo";
   file_name?: string;
+  /** Enlace al archivo guardado en Google Drive (carpeta Cliente / Proyecto / Fase). */
+  file_url?: string;
 }
 
 export interface Phase {
@@ -70,6 +72,7 @@ export interface FirstInput {
   file_name: string;
   doc_type: InitialDocType;
   received_at: string;
+  file_url?: string;
 }
 
 /** Nivel de autoridad del PM (Paso 2 del cuestionario del Acta). */
@@ -547,6 +550,8 @@ export interface Project {
   bac_reference?: string;
   /** Documentos generados en Google Drive desde el Repositorio de Plantillas. */
   drive_docs: Record<string, DriveDoc>;
+  /** Carpetas del proyecto en Google Drive (Cliente / Proyecto / Fase). */
+  drive_folder?: { client_url: string; project_url: string; phases: Partial<Record<PhaseId, string>> };
 }
 
 export interface DriveDoc {

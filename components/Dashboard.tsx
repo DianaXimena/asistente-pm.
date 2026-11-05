@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, Briefcase, CalendarCheck, Compass, FileText, Gauge, History, KanbanSquare, LibraryBig, PartyPopper, PenLine, RotateCcw } from "lucide-react";
+import { AlertTriangle, ArrowRight, Briefcase, CalendarCheck, Compass, FileText, FolderOpen, Gauge, History, KanbanSquare, LibraryBig, PartyPopper, PenLine, RotateCcw } from "lucide-react";
 import { APPROACH_LABEL, getAlerts, getAssistantMessage, getOverallProgress } from "@/lib/assistant";
 import { useProject } from "@/lib/store";
 import type { PhaseId, Project } from "@/lib/types";
@@ -105,6 +105,17 @@ function DashboardView({ project }: { project: Project }) {
               </p>
               <h1 className="mt-1 text-2xl font-semibold text-kruger-dark sm:text-3xl">{project.project_name}</h1>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+            {project.drive_folder?.project_url && (
+              <a
+                href={project.drive_folder.project_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-kruger-gray/30 bg-white px-3 py-1.5 text-xs font-medium text-kruger-dark hover:border-kruger-orange"
+              >
+                <FolderOpen className="h-3.5 w-3.5 text-kruger-orange" /> Carpeta en Drive
+              </a>
+            )}
             {project.approach ? (
               <span
                 title={`${project.approach.rationale} (Detectado a partir de: ${project.approach.detected_from})`}
@@ -121,6 +132,7 @@ function DashboardView({ project }: { project: Project }) {
                 <FileText className="h-3.5 w-3.5" /> Enfoque pendiente de detección
               </Link>
             )}
+            </div>
           </header>
 
           {alerts.map((a) => (

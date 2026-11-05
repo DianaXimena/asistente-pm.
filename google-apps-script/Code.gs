@@ -33,6 +33,11 @@ function doPost(e) {
     var token = props.getProperty('API_TOKEN');
     if (!token || req.token !== token) return json_({ ok: false, error: 'unauthorized' });
 
+    // Organización de carpetas Cliente / Proyecto / Fase y guardado de archivos (Carpetas.gs).
+    if (req.action === 'organizeFiles') {
+      return json_(organizarDocumentosProyecto(req.client, req.project, req.phase, req.files || []));
+    }
+
     var problem = validate_(req);
     if (problem) return json_({ ok: false, error: problem });
 

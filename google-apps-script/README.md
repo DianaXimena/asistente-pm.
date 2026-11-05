@@ -1,5 +1,30 @@
 # Integración con Google Drive (Apps Script)
 
+El proyecto de Apps Script tiene **dos archivos**:
+
+| Archivo | Para qué |
+|---|---|
+| [`Code.gs`](./Code.gs) | Punto de entrada web (`doPost`) y carga inicial de las 13 plantillas estándar |
+| [`Carpetas.gs`](./Carpetas.gs) | Cascada **Cliente / Proyecto / Fase** y guardado de documentos de los proyectos |
+
+## Carpetas de proyectos (Carpetas.gs)
+
+Función principal: `organizarDocumentosProyecto(nombreCliente, nombreProyecto, faseProyecto, archivos)`.
+Dentro de la carpeta madre de proyectos `1qr8xOeGgvwJSuJJPFzdNaqZxSKL1gClt`:
+
+1. **Cliente:** busca la carpeta por nombre exacto; si existe la reutiliza, si no la crea.
+2. **Proyecto:** igual, dentro de la carpeta del cliente.
+3. **Fase:** igual, dentro de la carpeta del proyecto (Iniciación, Planificación, Ejecución, Monitoreo y Control, Cierre).
+4. **Archivos:** se guardan en la carpeta de la fase. Si ya existe uno con el mismo nombre, el nuevo se guarda con
+   fecha y hora en el nombre (no se sobrescribe).
+
+Los nombres se comparan después de quitar espacios sobrantes, un bloqueo evita carpetas duplicadas cuando llegan
+dos solicitudes a la vez y cada archivo tiene su propio manejo de errores.
+
+La app la usa en tres momentos: al **registrar un proyecto** (crea Cliente / Proyecto / Iniciación), al cargar el
+**primer insumo** (se guarda en Iniciación) y al **omitir un cuestionario con documento** (se guarda en la fase de
+ese documento). Límite por envío: 3 MB.
+
 El script se usa **una sola vez**, en la **carga inicial** del Repositorio de Plantillas. Un administrador
 abre **Plantillas CMMI / PMP** en la app y hace clic en **Inicializar repositorio**; la app llama a
 `/api/templates/seed` por cada plantilla y este script:
@@ -22,9 +47,11 @@ Los documentos quedan a nombre de la cuenta que publica el script; esa cuenta ne
 1. Entra a <https://script.google.com> con la cuenta que tiene acceso a la carpeta madre.
 2. Haz clic en **Nuevo proyecto** y ponle de nombre `Asistente PM · Plantillas`.
 3. Borra el contenido de `Código.gs` y pega todo el archivo [`Code.gs`](./Code.gs).
-4. En **Configuración del proyecto** (ícono de engranaje), activa **Mostrar el archivo de manifiesto "appsscript.json"**.
+4. Haz clic en **+** (junto a "Archivos") → **Secuencia de comandos**, llámalo `Carpetas` y pega todo
+   [`Carpetas.gs`](./Carpetas.gs).
+5. En **Configuración del proyecto** (ícono de engranaje), activa **Mostrar el archivo de manifiesto "appsscript.json"**.
    Vuelve al editor, abre `appsscript.json` y reemplázalo por [`appsscript.json`](./appsscript.json).
-5. Haz clic en **Guardar**.
+6. Haz clic en **Guardar**.
 
 ## Paso 2 · Crear el token secreto
 
@@ -39,6 +66,8 @@ Los documentos quedan a nombre de la cuenta que publica el script; esa cuenta ne
 1. En el editor, elige la función `testGenerate` y haz clic en **Ejecutar**.
 2. Google pedirá permisos: **Revisar permisos** → elige tu cuenta → **Permitir**.
 3. Revisa en la carpeta madre que se creó el documento "Prueba — Acta de Reunión". Bórralo después.
+4. Elige la función `probarOrganizacion` y ejecútala. En la carpeta de proyectos debe aparecer
+   `Cliente Demo / Proyecto Demo / Iniciación / prueba.txt`. Bórrala después.
 
 ## Paso 4 · Publicar como aplicación web
 
@@ -72,6 +101,8 @@ La URL no cambia.
 | unauthorized | `API_TOKEN` distinto en Apps Script y Vercel | Usa exactamente la misma clave |
 | drive_unreachable | URL incorrecta o implementación restringida | Revisa el paso 4 |
 | Un usuario no puede abrir un documento | La carpeta madre no está compartida con él | Comparte la carpeta madre |
+| No se pudo abrir la carpeta madre (…) | La cuenta que publica no tiene acceso a la carpeta de proyectos | Dale acceso de Editor a esa cuenta |
+| Los archivos superan el máximo de 3 MB | Límite de envío de Vercel | Sube el archivo directamente en la carpeta de Drive |
 
 Si la carga inicial falla en alguna plantilla, vuelve a hacer clic en **Inicializar repositorio**: solo se crean
 las que faltan.
