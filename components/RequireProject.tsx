@@ -11,7 +11,7 @@ export function RequireProject({ children }: { children: (project: Project) => R
   const router = useRouter();
 
   useEffect(() => {
-    if (hydrated && !project) router.replace("/nuevo");
+    if (hydrated && !project) router.replace("/");
   }, [hydrated, project, router]);
 
   if (!hydrated || !project) {

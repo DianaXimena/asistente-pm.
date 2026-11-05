@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ChevronRight, Lock, Paperclip } from "lucide-react";
 import { inputSemaforo, isWaiting, missingRequirements } from "@/lib/assistant";
 import { QUESTIONNAIRES } from "@/lib/questionnaires";
+import { docTooltip } from "@/lib/pmp";
+import { Tooltip } from "./Tooltip";
 import type { Phase, Project } from "@/lib/types";
 import { SemaforoDot, SemaforoLegend } from "./Semaforo";
 
@@ -28,7 +30,7 @@ export function PhaseChecklist({ project, phase, isCurrent }: { project: Project
           const content = (
             <>
               <SemaforoDot value={inputSemaforo(input.status, isCurrent)} />
-              <span className="min-w-0 flex-1">
+              <Tooltip content={docTooltip(input.questionnaire)} side="top" className="min-w-0 flex-1">
                 <span className="block truncate text-sm text-kruger-dark">{input.artifact_name}</span>
                 {input.source === "archivo" && input.file_name && (
                   <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-kruger-dark/55">
@@ -45,7 +47,7 @@ export function PhaseChecklist({ project, phase, isCurrent }: { project: Project
                     <Lock className="h-3 w-3 shrink-0" /> Requiere: {missing.map((m) => m.artifact_name).join(", ")}
                   </span>
                 )}
-              </span>
+              </Tooltip>
               <span className="shrink-0 rounded-full bg-kruger-gray-soft px-2.5 py-0.5 text-xs text-kruger-dark/70">{input.status}</span>
             </>
           );

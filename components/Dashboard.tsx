@@ -9,6 +9,7 @@ import { useProject } from "@/lib/store";
 import type { PhaseId, Project } from "@/lib/types";
 import { AssistantCard } from "./AssistantCard";
 import { Radiator } from "./execution/ExecutionBoard";
+import { MonitoringPanel } from "./control/MonitoringPanel";
 import { readinessLevel, readinessScore } from "./tools/Tools";
 import { PhaseChecklist } from "./PhaseChecklist";
 import { PhaseStepper } from "./PhaseStepper";
@@ -33,7 +34,10 @@ function DashboardView({ project }: { project: Project }) {
     <div className="min-h-screen bg-kruger-gray-soft lg:flex">
       {/* Barra lateral de progreso por fases */}
       <aside className="border-b border-kruger-gray/25 bg-white lg:sticky lg:top-0 lg:h-screen lg:w-80 lg:shrink-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-        <div className="flex items-center gap-2 px-6 pb-4 pt-6">
+        <Link href="/" className="mx-6 mt-5 inline-flex items-center gap-1.5 text-xs font-medium text-kruger-orange hover:underline">
+          <ArrowRight className="h-3.5 w-3.5 rotate-180" /> Portafolio de proyectos
+        </Link>
+        <div className="flex items-center gap-2 px-6 pb-4 pt-4">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-kruger-orange text-white">
             <Compass className="h-5 w-5" />
           </span>
@@ -75,17 +79,17 @@ function DashboardView({ project }: { project: Project }) {
           <button
             type="button"
             onClick={() => {
-              if (window.confirm("Se eliminará el proyecto guardado en este navegador. ¿Deseas empezar de nuevo?")) reset();
+              if (window.confirm("Se eliminará este proyecto del portafolio guardado en este navegador. ¿Continuar?")) reset();
             }}
             className="mt-4 inline-flex items-center gap-1.5 px-2 text-xs text-kruger-dark/50 transition hover:text-semaforo-rojo"
           >
-            <RotateCcw className="h-3.5 w-3.5" /> Eliminar proyecto y empezar de nuevo
+            <RotateCcw className="h-3.5 w-3.5" /> Eliminar este proyecto del portafolio
           </button>
         </nav>
       </aside>
 
       {/* Contenido principal */}
-      <main className="flex-1 px-4 py-6 sm:px-8 lg:py-10">
+      <main key={project.project_id} className="flex-1 animate-enter px-4 py-6 sm:px-8 lg:py-10">
         <div className="mx-auto max-w-4xl space-y-6">
           <header className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
@@ -196,6 +200,8 @@ function DashboardView({ project }: { project: Project }) {
               <Radiator project={project} compact />
             </section>
           )}
+
+          {selectedPhase.id === "control" && <MonitoringPanel project={project} />}
 
           <PhaseChecklist project={project} phase={selectedPhase} isCurrent={selectedPhase.id === project.current_phase} />
         </div>

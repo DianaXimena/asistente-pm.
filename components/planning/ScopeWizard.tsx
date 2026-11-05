@@ -279,7 +279,7 @@ export function Done({ title = "Línea base aprobada" }: { title?: string }) {
         </div>
       </div>
       <div className="mt-6 flex flex-wrap gap-3 border-t border-kruger-gray/20 pt-6">
-        <Link href="/" className={btnPrimary}>
+        <Link href="/proyecto" className={btnPrimary}>
           <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
         </Link>
         <button type="button" className={btnSecondary} onClick={() => location.reload()}>

@@ -264,7 +264,7 @@ function Rtm({ project }: { project: Project }) {
 
       <Hint>La RTM se aprueba solo con cobertura bidireccional completa: todo requisito tiene paquete de trabajo y todo paquete responde a un requisito.</Hint>
       <div className="flex flex-col-reverse justify-between gap-3 border-t border-kruger-gray/25 pt-6 sm:flex-row sm:items-center">
-        <Link href="/" className={btnSecondary}>
+        <Link href="/proyecto" className={btnSecondary}>
           <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
         </Link>
         {!project.rtm_approved && (

@@ -96,7 +96,7 @@ function Log({ project }: { project: Project }) {
         {project.change_requests.length === 0 && <li className={clsx(card, "text-center text-sm text-kruger-dark/70")}>Sin solicitudes de cambio registradas.</li>}
       </ul>
       <div className="flex flex-col-reverse justify-between gap-3 border-t border-kruger-gray/25 pt-6 sm:flex-row sm:items-center">
-        <Link href="/" className={btnSecondary}>
+        <Link href="/proyecto" className={btnSecondary}>
           <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
         </Link>
         <div className="flex flex-col items-stretch gap-1 sm:items-end">
@@ -147,7 +147,7 @@ function ChangeWizard({ project, initial, onExit }: { project: Project; initial:
           </p>
         )}
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/" className={btnPrimary}>
+          <Link href="/proyecto" className={btnPrimary}>
             <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
           </Link>
           <Link

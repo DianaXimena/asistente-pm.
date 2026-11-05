@@ -8,7 +8,7 @@ export function initialPhases(): Phase[] {
   return [
     {
       id: "inicio",
-      phase_name: "Inicio",
+      phase_name: "Iniciación",
       status: "En Progreso",
       progress_percentage: 0,
       mandatory_inputs: [
@@ -52,7 +52,7 @@ export function initialPhases(): Phase[] {
     },
     {
       id: "control",
-      phase_name: "Control",
+      phase_name: "Monitoreo y Control",
       status: "No Iniciada",
       progress_percentage: 0,
       mandatory_inputs: [
@@ -125,6 +125,8 @@ export function normalizeProject(p: Project): Project {
       if (!stored) return tph;
       return {
         ...stored,
+        // Nombres de los grupos de procesos PMP vigentes.
+        phase_name: tph.phase_name,
         mandatory_inputs: tph.mandatory_inputs.map((ti) => {
           const si = stored.mandatory_inputs.find((x) => x.artifact_name === ti.artifact_name);
           return si ? { ...ti, status: si.status, source: si.source, file_name: si.file_name } : ti;

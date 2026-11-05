@@ -49,7 +49,7 @@ function Wizard() {
   const confirm = () => {
     if (!result || !docType) return;
     setApproach(result, { file_name: fileName, doc_type: docType, received_at: new Date().toISOString() });
-    router.push("/");
+    router.push("/proyecto");
   };
 
   return (
@@ -111,7 +111,7 @@ function Wizard() {
           </p>
 
           <div className="mt-6 flex flex-col-reverse justify-between gap-3 border-t border-kruger-gray/20 pt-6 sm:flex-row">
-            <Link href="/" className={btnGhost}>
+            <Link href="/proyecto" className={btnGhost}>
               Lo cargaré después
             </Link>
             <button type="button" onClick={detect} disabled={!fileName || !docType} className={btnPrimary}>

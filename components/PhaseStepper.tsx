@@ -3,6 +3,8 @@
 import clsx from "clsx";
 import { Check, Lock } from "lucide-react";
 import { phaseSemaforo } from "@/lib/assistant";
+import { PHASE_TOOLTIPS } from "@/lib/pmp";
+import { Tooltip } from "./Tooltip";
 import type { Phase, PhaseId } from "@/lib/types";
 import { ProgressBar } from "./ProgressBar";
 import { SemaforoDot } from "./Semaforo";
@@ -38,6 +40,7 @@ export function PhaseStepper({ phases, currentPhase, selectedPhase, onSelect }: 
                 )}
               />
             )}
+            <Tooltip content={PHASE_TOOLTIPS[phase.id]}>
             <button
               type="button"
               onClick={() => onSelect(phase.id)}
@@ -81,6 +84,7 @@ export function PhaseStepper({ phases, currentPhase, selectedPhase, onSelect }: 
                 </span>
               </span>
             </button>
+            </Tooltip>
           </li>
         );
       })}

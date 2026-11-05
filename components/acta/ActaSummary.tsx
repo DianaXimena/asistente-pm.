@@ -95,7 +95,7 @@ export function ActaSummary({ data, onEdit }: { data: ActaFormData; onEdit: () =
           <Pencil className="h-4 w-4" /> Editar respuestas
         </button>
         <Link
-          href="/"
+          href="/proyecto"
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-kruger-gray/40 bg-white px-5 py-2.5 text-sm font-medium text-kruger-dark transition hover:border-kruger-orange"
         >
           <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard

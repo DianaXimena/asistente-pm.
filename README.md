@@ -10,9 +10,18 @@ npm install
 npm run dev
 ```
 
+## Portafolio
+
+- **`/` Portafolio**: botón "Nuevo Proyecto" (captura de cliente y proyecto), total de proyectos en curso y una
+  tarjeta por proyecto con enfoque (Predictivo, Adaptativo (Ágil) o Híbrido), avance del ciclo de vida y
+  comparación del avance real (EV) frente a lo planificado (PV) de la línea base de medición del desempeño.
+- **`/proyecto` Detalle**: los cinco grupos de procesos (Iniciación, Planificación, Ejecución, Monitoreo y
+  Control, Cierre) con tooltips PMP. En Monitoreo y Control: cronograma, presupuesto, utilización de recursos
+  y curva S (PV, EV y AC acumulados).
+
 ## Flujo actual
 
-1. **Nuevo proyecto** (`/nuevo`): nombre del cliente y del proyecto.
+1. **Nuevo proyecto** (botón en el portafolio): nombre del cliente y del proyecto.
 2. **Primer insumo** (`/nuevo/insumo`): se carga el documento inicial y se detecta el enfoque
    (Predictivo, Ágil o Híbrido); si no hay certeza, micro-evaluador de 2 preguntas.
 3. **Inicio**: Acta de Constitución (4 pasos) y Registro de Interesados (identificación,

@@ -108,7 +108,7 @@ function Register({ project }: { project: Project }) {
           </li>
         ))}
       </ul>
-      <Link href="/" className={btnSecondary}>
+      <Link href="/proyecto" className={btnSecondary}>
         <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
       </Link>
     </div>

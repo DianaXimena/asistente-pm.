@@ -85,7 +85,7 @@ function Readiness({ project }: { project: Project }) {
         >
           {saved ? "Evaluación guardada" : "Guardar evaluación"}
         </button>
-        <Link href="/" className={btnSecondary}>
+        <Link href="/proyecto" className={btnSecondary}>
           <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
         </Link>
       </div>
@@ -245,7 +245,7 @@ function Meetings({ project }: { project: Project }) {
         ))}
         {project.meetings.length === 0 && !m && <li className={clsx(card, "text-sm text-kruger-dark/70")}>Sin reuniones registradas.</li>}
       </ul>
-      <Link href="/" className={btnSecondary}>
+      <Link href="/proyecto" className={btnSecondary}>
         <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
       </Link>
     </div>

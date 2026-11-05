@@ -8,7 +8,7 @@ import type { ApproachType, InputStatus, MandatoryInput, Phase, PhaseStatus, Pro
 
 export const APPROACH_LABEL: Record<ApproachType, string> = {
   Predictivo: "Predictivo",
-  Agil: "Ágil / Adaptativo",
+  Agil: "Adaptativo (Ágil)",
   Hibrido: "Híbrido",
 };
 

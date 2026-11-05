@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { ArrowLeft, ArrowRight, FileCheck2, Plus, Trash2 } from "lucide-react";
 import { AUTHORITY_OPTIONS, EMPTY_ACTA, isStepValid, isValidEmail } from "@/lib/acta";
-import { ACTA_DRAFT_KEY, useProject } from "@/lib/store";
+import { actaDraftKey, useProject } from "@/lib/store";
 import type { ActaFormData, PmAuthority } from "@/lib/types";
 import { QuestionnaireGate } from "../QuestionnaireGate";
 import { ActaSummary } from "./ActaSummary";
@@ -33,7 +33,7 @@ function Wizard() {
   useEffect(() => {
     if (!hydrated || loaded) return;
     try {
-      const raw = localStorage.getItem(ACTA_DRAFT_KEY);
+      const raw = localStorage.getItem(actaDraftKey(project?.project_id ?? ""));
       if (raw) setData({ ...EMPTY_ACTA, ...(JSON.parse(raw) as ActaFormData) });
       else if (project?.acta) setData(project.acta);
     } catch {
@@ -45,7 +45,7 @@ function Wizard() {
   useEffect(() => {
     if (!loaded) return;
     try {
-      localStorage.setItem(ACTA_DRAFT_KEY, JSON.stringify(data));
+      localStorage.setItem(actaDraftKey(project?.project_id ?? ""), JSON.stringify(data));
     } catch {
       /* ignorar */
     }
@@ -65,7 +65,7 @@ function Wizard() {
     if (step === TOTAL) {
       submitActa(data);
       try {
-        localStorage.removeItem(ACTA_DRAFT_KEY);
+        localStorage.removeItem(actaDraftKey(project?.project_id ?? ""));
       } catch {
         /* ignorar */
       }
@@ -76,7 +76,7 @@ function Wizard() {
 
   const back = () => {
     setTouched(false);
-    if (step === 1) router.push("/");
+    if (step === 1) router.push("/proyecto");
     else setStep((s) => s - 1);
   };
 

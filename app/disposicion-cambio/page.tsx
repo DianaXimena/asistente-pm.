@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Disposición al Cambio · Asistente 
 export default function Page() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 sm:px-8 sm:py-12">
-      <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-kruger-orange hover:underline print:hidden">
+      <Link href="/proyecto" className="inline-flex items-center gap-2 text-sm font-medium text-kruger-orange hover:underline print:hidden">
         <ArrowLeft className="h-4 w-4" /> Volver al Dashboard
       </Link>
       <div className="mb-6 mt-4 print:hidden">

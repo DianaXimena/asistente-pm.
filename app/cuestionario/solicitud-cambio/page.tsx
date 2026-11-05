@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Registro de Cambios · Asistente PM"
 
 export default function Page() {
   return (
-    <QuestionnaireLayout phase="Control" title="Registro de Cambios" subtitle="Escalera de 9 peldaños del control integrado de cambios." wide>
+    <QuestionnaireLayout phase="Monitoreo y Control" title="Registro de Cambios" subtitle="Escalera de 9 peldaños del control integrado de cambios." wide>
       <ChangeLog />
     </QuestionnaireLayout>
   );

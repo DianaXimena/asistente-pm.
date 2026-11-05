@@ -76,7 +76,7 @@ function Audit({ project }: { project: Project }) {
           </table>
         </div>
       </section>
-      <Link href="/" className={btnSecondary}>
+      <Link href="/proyecto" className={btnSecondary}>
         <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
       </Link>
     </div>

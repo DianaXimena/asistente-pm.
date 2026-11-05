@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Registro de Incidentes · Asistente 
 
 export default function Page() {
   return (
-    <QuestionnaireLayout phase="Control" title="Registro de Incidentes" subtitle="Hechos presentes: severidad, responsable, plan de respuesta e impacto en líneas base." wide>
+    <QuestionnaireLayout phase="Monitoreo y Control" title="Registro de Incidentes" subtitle="Hechos presentes: severidad, responsable, plan de respuesta e impacto en líneas base." wide>
       <IncidentRegister />
     </QuestionnaireLayout>
   );

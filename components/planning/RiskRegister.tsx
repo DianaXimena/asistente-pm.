@@ -102,7 +102,7 @@ function Register({ project }: { project: Project }) {
       </ul>
 
       <div className="flex flex-col-reverse justify-between gap-3 border-t border-kruger-gray/25 pt-6 sm:flex-row sm:items-center">
-        <Link href="/" className={btnSecondary}>
+        <Link href="/proyecto" className={btnSecondary}>
           <LayoutDashboard className="h-4 w-4" /> Volver al Dashboard
         </Link>
         {!project.risk_register_approved && (

@@ -42,8 +42,15 @@ import type {
 } from "./types";
 
 // Persistencia provisional en el navegador hasta conectar una base de datos real.
-const STORAGE_KEY = "asistente-pm:project:v3";
-export const ACTA_DRAFT_KEY = "asistente-pm:acta-draft:v2";
+const STORAGE_KEY = "asistente-pm:portfolio:v1";
+/** Versión anterior (un solo proyecto): se migra al portafolio. */
+const LEGACY_KEY = "asistente-pm:project:v3";
+export const actaDraftKey = (projectId: string) => `asistente-pm:${projectId}:acta-draft`;
+
+interface PortfolioState {
+  projects: Project[];
+  activeId: string | null;
+}
 
 function patchInput(p: Project, q: QuestionnaireId, patch: Partial<MandatoryInput>): Project {
   return {
@@ -158,7 +165,11 @@ function approveBaseline(p: Project, q: QuestionnaireId, patch: Partial<Project>
 }
 
 interface ProjectStore {
+  /** Proyecto activo (el que se está gestionando). */
   project: Project | null;
+  /** Portafolio completo. */
+  projects: Project[];
+  selectProject: (id: string) => void;
   hydrated: boolean;
   create: (clientName: string, projectName: string) => void;
   setApproach: (approach: Approach, firstInput: FirstInput) => void;
@@ -209,13 +220,40 @@ interface ProjectStore {
 const Ctx = createContext<ProjectStore | null>(null);
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
-  const [project, setProject] = useState<Project | null>(null);
+  const [state, setState] = useState<PortfolioState>({ projects: [], activeId: null });
   const [hydrated, setHydrated] = useState(false);
+  const project = state.projects.find((x) => x.project_id === state.activeId) ?? null;
+
+  /** Actualiza el proyecto activo; con null lo elimina del portafolio; uno nuevo se agrega y queda activo. */
+  const setProject = useCallback((u: Project | null | ((p: Project | null) => Project | null)) => {
+    setState((s) => {
+      const cur = s.projects.find((x) => x.project_id === s.activeId) ?? null;
+      const next = typeof u === "function" ? u(cur) : u;
+      if (next === cur) return s;
+      if (!next) return { projects: s.projects.filter((x) => x.project_id !== s.activeId), activeId: null };
+      const exists = s.projects.some((x) => x.project_id === next.project_id);
+      return {
+        projects: exists ? s.projects.map((x) => (x.project_id === next.project_id ? next : x)) : [...s.projects, next],
+        activeId: next.project_id,
+      };
+    });
+  }, []);
+
+  const selectProject = useCallback((id: string) => setState((s) => (s.projects.some((x) => x.project_id === id) ? { ...s, activeId: id } : s)), []);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setProject(recompute(normalizeProject(JSON.parse(raw) as Project)));
+      if (raw) {
+        const st = JSON.parse(raw) as PortfolioState;
+        setState({ projects: st.projects.map((x) => recompute(normalizeProject(x))), activeId: st.activeId });
+      } else {
+        const legacy = localStorage.getItem(LEGACY_KEY);
+        if (legacy) {
+          const p = recompute(normalizeProject(JSON.parse(legacy) as Project));
+          setState({ projects: [p], activeId: p.project_id });
+        }
+      }
     } catch {
       /* almacenamiento no disponible */
     }
@@ -225,12 +263,11 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      if (project) localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
-      else localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       /* ignorar */
     }
-  }, [project, hydrated]);
+  }, [state, hydrated]);
 
   const mutate = useCallback((fn: (p: Project) => Project) => {
     setProject((p) => (p ? recompute(fn(p)) : p));
@@ -563,18 +600,22 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     [mutate],
   );
 
+  /** Elimina el proyecto activo del portafolio (y sus borradores). */
   const reset = useCallback(() => {
     try {
-      localStorage.removeItem(ACTA_DRAFT_KEY);
+      const id = state.activeId;
+      if (id) Object.keys(localStorage).filter((k) => k.startsWith(`asistente-pm:${id}:`)).forEach((k) => localStorage.removeItem(k));
     } catch {
       /* ignorar */
     }
     setProject(null);
-  }, []);
+  }, [state.activeId, setProject]);
 
   const value = useMemo(
     () => ({
       project,
+      projects: state.projects,
+      selectProject,
       hydrated,
       create,
       setApproach,
@@ -621,6 +662,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       project,
+      state.projects,
+      selectProject,
       hydrated,
       create,
       setApproach,
