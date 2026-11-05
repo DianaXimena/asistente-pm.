@@ -52,6 +52,8 @@ export interface AssistantMessage {
   href?: string;
   /** Insumos obligatorios restantes de la fase. */
   remaining: number;
+  /** Card de alerta (p. ej. "Falta firma de Patrocinador en Acta"). */
+  alert?: string;
 }
 
 /**
@@ -61,8 +63,13 @@ export interface AssistantMessage {
 export function getAssistantMessage(project: Project): AssistantMessage {
   const phase = getCurrentPhase(project);
   const pending = phase.mandatory_inputs.filter((i) => i.status !== "Aprobado");
-  const withQuestionnaire = pending.find((i) => i.questionnaire);
+  // Un insumo "Pendiente de Firma" ya tiene su cuestionario completo: no se vuelve a proponer.
+  const withQuestionnaire = pending.find((i) => i.questionnaire && i.status !== "Pendiente de Firma");
   const base = `Estás en la fase de ${phase.phase_name} (${phase.progress_percentage}%).`;
+  const actaUnsigned = phase.mandatory_inputs.some(
+    (i) => i.questionnaire === "acta-constitucion" && i.status === "Pendiente de Firma",
+  );
+  const alert = actaUnsigned ? "Falta firma de Patrocinador en Acta" : undefined;
 
   if (withQuestionnaire?.questionnaire) {
     const q = QUESTIONNAIRES[withQuestionnaire.questionnaire];
@@ -74,16 +81,22 @@ export function getAssistantMessage(project: Project): AssistantMessage {
       questionnaire: q,
       href: `/cuestionario/${q.id}`,
       remaining: pending.length,
+      alert,
     };
   }
 
   if (pending.length > 0) {
+    const next = pending.find((i) => i.status !== "Pendiente de Firma") ?? pending[0];
     return {
       phaseName: phase.phase_name,
       progress: phase.progress_percentage,
-      message: `${base} Siguiente insumo obligatorio: ${pending[0].artifact_name}.`,
-      pendingInput: pending[0],
+      message:
+        next.status === "Pendiente de Firma"
+          ? `${base} Borrador de "${next.artifact_name}" generado: falta la firma del Patrocinador.`
+          : `${base} Siguiente insumo obligatorio: ${next.artifact_name}.`,
+      pendingInput: next,
       remaining: pending.length,
+      alert,
     };
   }
 

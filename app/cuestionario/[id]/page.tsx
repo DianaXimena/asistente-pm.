@@ -5,7 +5,10 @@ import { QUESTIONNAIRES } from "@/lib/questionnaires";
 import type { QuestionnaireId } from "@/lib/types";
 
 export function generateStaticParams() {
-  return Object.keys(QUESTIONNAIRES).map((id) => ({ id }));
+  // El Acta tiene su propia ruta con el flujo completo.
+  return Object.keys(QUESTIONNAIRES)
+    .filter((id) => id !== "acta-constitucion")
+    .map((id) => ({ id }));
 }
 
 // Marcador de posición: el flujo paso a paso de cada cuestionario se construye en la siguiente iteración.

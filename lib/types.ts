@@ -19,6 +19,28 @@ export interface MandatoryInput {
   questionnaire?: QuestionnaireId;
 }
 
+/** Nivel de autoridad del PM (Paso 2 del cuestionario del Acta). */
+export type PmAuthority = "Baja" | "Media" | "Alta";
+
+export interface Milestone {
+  name: string;
+  date: string;
+}
+
+/** Respuestas del cuestionario del Acta de Constitución (Project Charter). */
+export interface ActaFormData {
+  business_case: string;
+  pm_name: string;
+  pm_authority: PmAuthority | "";
+  budget: string;
+  currency: string;
+  deadline: string;
+  milestones: Milestone[];
+  sponsor_name: string;
+  sponsor_role: string;
+  sponsor_email: string;
+}
+
 export interface Phase {
   id: PhaseId;
   phase_name: string;
@@ -37,6 +59,10 @@ export interface Project {
   };
   current_phase: PhaseId;
   phases: Phase[];
+  /** Datos del Acta generados por el cuestionario. */
+  acta?: ActaFormData;
+  /** Proporción (0–1) del Registro de Interesados completado. Insumo del 30% de Inicio. */
+  stakeholders_identified_ratio: number;
 }
 
 /** Semáforo visual del motor de fases: Verde completo, Ámbar pendiente, Rojo bloqueante. */

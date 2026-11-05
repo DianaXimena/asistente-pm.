@@ -11,6 +11,8 @@ export const mockProject: Project = {
     detected_from: "Contrato Marco con Sprints",
   },
   current_phase: "inicio",
+  // Valor de demostración: 1/3 del registro de interesados → 30% × 1/3 = 10% de Inicio.
+  stakeholders_identified_ratio: 1 / 3,
   phases: [
     {
       id: "inicio",
