@@ -21,9 +21,18 @@ Dentro de la carpeta madre de proyectos `1qr8xOeGgvwJSuJJPFzdNaqZxSKL1gClt`:
 Los nombres se comparan después de quitar espacios sobrantes, un bloqueo evita carpetas duplicadas cuando llegan
 dos solicitudes a la vez y cada archivo tiene su propio manejo de errores.
 
-La app la usa en tres momentos: al **registrar un proyecto** (crea Cliente / Proyecto / Iniciación), al cargar el
-**primer insumo** (se guarda en Iniciación) y al **omitir un cuestionario con documento** (se guarda en la fase de
-ese documento). Límite por envío: 3 MB.
+La app la usa al **registrar un proyecto** (crea Cliente / Proyecto / Iniciación) y cada vez que se adjunta un
+documento, que se guarda en la carpeta de su fase:
+
+| Documento | Carpeta de fase |
+|---|---|
+| Primer insumo | Iniciación |
+| "Omitir con documento" de un cuestionario | La fase de ese documento |
+| Solicitud escrita de un cambio | Monitoreo y Control |
+| Acta de aceptación del cliente | Cierre |
+| Constancia de cierre de un contrato | Cierre |
+
+Límite por envío: 3 MB.
 
 El script se usa **una sola vez**, en la **carga inicial** del Repositorio de Plantillas. Un administrador
 abre **Plantillas CMMI / PMP** en la app y hace clic en **Inicializar repositorio**; la app llama a

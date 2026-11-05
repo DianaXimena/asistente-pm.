@@ -351,6 +351,7 @@ export interface ChangeRequest {
   type: ChangeType | "";
   origin: "Escrito" | "Verbal" | "";
   written_file: string;
+  written_file_url?: string;
   /** Cumplimiento regulatorio: no se negocia ni se rechaza. */
   regulatory: boolean;
   impact: ChangeImpact;
@@ -383,6 +384,7 @@ export interface DeliverableAcceptance {
   accepted_by: string;
   acceptance_date: string;
   acceptance_file: string;
+  acceptance_file_url?: string;
   ops_owner: string;
   maintenance_plan: string;
   benefit_metrics: string;
@@ -401,6 +403,7 @@ export interface Contract {
   audit_done: boolean;
   open_claims: boolean | null;
   closure_file: string;
+  closure_file_url?: string;
 }
 
 export interface Closure {

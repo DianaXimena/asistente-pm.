@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { AlertTriangle, BookOpen, CheckCircle2, FileUp, LayoutDashboard, Mail, Pencil, Plus, Send } from "lucide-react";
+import { AlertTriangle, BookOpen, CheckCircle2, LayoutDashboard, Mail, Pencil, Plus, Send } from "lucide-react";
 import { formatDate } from "@/lib/acta";
 import { approvalDateError, todayIso } from "@/lib/audit";
 import { BAND_GUIDANCE, bacFor, crGovernance } from "@/lib/governance";
@@ -24,6 +24,8 @@ import { useProject } from "@/lib/store";
 import type { BaselineId, ChangeRequest, ChangeType, Project } from "@/lib/types";
 import { Field, StepHeading, inputClass } from "../acta/fields";
 import { Toggle } from "../execution/LessonsRegister";
+import { DriveFilePick } from "../DriveFilePick";
+import { phaseOfInput } from "@/lib/drive-upload";
 import { PeopleList } from "../planning/PeopleList";
 import { QuestionnaireGate } from "../QuestionnaireGate";
 import { btnPrimary, btnSecondary, card } from "../ui";
@@ -72,6 +74,18 @@ function Log({ project }: { project: Project }) {
                   {cr.type || "—"} · Solicita: {cr.requester || "—"} · {formatDate(cr.created_at.slice(0, 10))}
                   {cr.route && ` · Decide: ${cr.route === "PM" ? "PM" : "CCB / Gobernanza"}`}
                 </p>
+                {cr.written_file && (
+                  <p className="mt-1 text-xs text-kruger-dark/60">
+                    Solicitud escrita:{" "}
+                    {cr.written_file_url ? (
+                      <a href={cr.written_file_url} target="_blank" rel="noreferrer" className="text-kruger-orange hover:underline">
+                        {cr.written_file}
+                      </a>
+                    ) : (
+                      cr.written_file
+                    )}
+                  </p>
+                )}
               </div>
               <span
                 className={clsx(
@@ -260,7 +274,16 @@ function ChangeWizard({ project, initial, onExit }: { project: Project; initial:
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-semaforo-rojo" /> {VERBAL_MESSAGE}
             </p>
           )}
-          {cr.origin === "Escrito" && <FilePick label="Solicitud escrita (documento)" value={cr.written_file} onChange={(v) => set("written_file", v)} />}
+          {cr.origin === "Escrito" && (
+            <DriveFilePick
+              label="Solicitud escrita (documento)"
+              value={cr.written_file}
+              url={cr.written_file_url}
+              project={project}
+              phaseId={phaseOfInput(project, "solicitud-cambio")}
+              onChange={(name, url) => setCr((x) => ({ ...x, written_file: name, written_file_url: url }))}
+            />
+          )}
           <label className="flex items-start gap-2 text-sm text-kruger-dark">
             <input type="checkbox" className="mt-0.5 h-4 w-4 accent-kruger-orange" checked={cr.regulatory} onChange={(e) => set("regulatory", e.target.checked)} />
             Es un cambio por cumplimiento regulatorio (ley, norma o criterio de cumplimiento que cambió).
@@ -493,15 +516,5 @@ function ChangeWizard({ project, initial, onExit }: { project: Project; initial:
         </>
       )}
     </WizardFrame>
-  );
-}
-
-function FilePick({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <label className="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-kruger-gray/50 bg-kruger-gray-soft p-4 text-sm text-kruger-dark hover:border-kruger-orange">
-      <FileUp className="h-5 w-5 text-kruger-orange" />
-      <span className="min-w-0 break-all">{value || label}</span>
-      <input type="file" className="sr-only" aria-label={label} onChange={(e) => onChange(e.target.files?.[0]?.name ?? "")} />
-    </label>
   );
 }

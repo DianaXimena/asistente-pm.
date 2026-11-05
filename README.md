@@ -62,7 +62,8 @@ Guía de instalación: [`google-apps-script/README.md`](./google-apps-script/REA
 
 ## Carpetas de proyectos en Google Drive
 
-Al registrar un proyecto, cargar el primer insumo u omitir un cuestionario con documento, la app crea (o
+Al registrar un proyecto, cargar el primer insumo, omitir un cuestionario con documento o adjuntar la solicitud
+escrita de un cambio, el acta de aceptación del cliente o la constancia de cierre de un contrato, la app crea (o
 reutiliza) en Drive la ruta **Cliente / Proyecto / Fase** dentro de la carpeta `1qr8xOeGgvwJSuJJPFzdNaqZxSKL1gClt`
 y guarda allí los archivos (`/api/drive/files` → `google-apps-script/Carpetas.gs`). El detalle del proyecto muestra
 "Carpeta en Drive" y cada documento adjunto enlaza a su archivo.

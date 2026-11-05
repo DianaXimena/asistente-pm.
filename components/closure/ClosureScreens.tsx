@@ -15,6 +15,8 @@ import { useProject } from "@/lib/store";
 import type { Closure, Contract, DeliverableAcceptance, KnowledgeRecord, Project } from "@/lib/types";
 import { Field, StepHeading, inputClass } from "../acta/fields";
 import { Toggle } from "../execution/LessonsRegister";
+import { DriveFilePick } from "../DriveFilePick";
+import { phaseOfInput } from "@/lib/drive-upload";
 import { PeopleList } from "../planning/PeopleList";
 import { AddBtn, Done, RemoveBtn } from "../planning/ScopeWizard";
 import { QuestionnaireGate } from "../QuestionnaireGate";
@@ -63,7 +65,15 @@ function Acceptance({ project }: { project: Project }) {
             )}
             {r.accepted && r.acceptance && (
               <p className="mt-2 text-xs text-kruger-dark/65">
-                Aceptado por {r.acceptance.accepted_by} el {formatDate(r.acceptance.acceptance_date)} · Acta: {r.acceptance.acceptance_file} · Operaciones: {r.acceptance.ops_owner}
+                Aceptado por {r.acceptance.accepted_by} el {formatDate(r.acceptance.acceptance_date)} · Acta:{" "}
+                {r.acceptance.acceptance_file_url ? (
+                  <a href={r.acceptance.acceptance_file_url} target="_blank" rel="noreferrer" className="text-kruger-orange hover:underline">
+                    {r.acceptance.acceptance_file}
+                  </a>
+                ) : (
+                  r.acceptance.acceptance_file
+                )}{" "}
+                · Operaciones: {r.acceptance.ops_owner}
                 {r.acceptance.rtm_ids?.length ? ` · RTM: ${r.acceptance.rtm_ids.join(", ")}` : ""}
                 {r.acceptance.recorded_at && ` · Sellado: ${new Date(r.acceptance.recorded_at).toLocaleString("es-EC")}`}
               </p>
@@ -146,7 +156,14 @@ function AcceptanceWizard({ project, id, initial, onClose }: { project: Project;
                 <input id="acc-date" type="date" min={lastQc} max={todayIso()} className={inputClass} value={a.acceptance_date} onChange={(e) => setA({ ...a, acceptance_date: e.target.value })} />
               </Field>
             </div>
-            <FilePick label="Acta de aceptación firmada" value={a.acceptance_file} onChange={(v) => setA({ ...a, acceptance_file: v })} />
+            <DriveFilePick
+              label="Acta de aceptación firmada"
+              value={a.acceptance_file}
+              url={a.acceptance_file_url}
+              project={project}
+              phaseId={phaseOfInput(project, "aceptacion-entregables")}
+              onChange={(name, url) => setA((x) => ({ ...x, acceptance_file: name, acceptance_file_url: url }))}
+            />
             <ErrorText show={touched && !valid}>Registra quién aceptó, una fecha válida y adjunta el acta firmada.</ErrorText>
           </>
         )}
@@ -292,7 +309,14 @@ function Contracts({ project }: { project: Project }) {
                   </div>
                   {k.open_claims && <p className="mt-1 text-xs text-semaforo-rojo">Resuelve las reclamaciones (negociación como primera opción) antes de cerrar el contrato.</p>}
                 </div>
-                <FilePick label="Constancia de cierre formal del contrato" value={k.closure_file} onChange={(v) => setK(i, { closure_file: v })} />
+                <DriveFilePick
+                  label="Constancia de cierre formal del contrato"
+                  value={k.closure_file}
+                  url={k.closure_file_url}
+                  project={project}
+                  phaseId={phaseOfInput(project, "cierre-contratos")}
+                  onChange={(name, url) => setK(i, { closure_file: name, closure_file_url: url })}
+                />
               </li>
             ))}
           </ul>
@@ -490,17 +514,6 @@ function Check({ label, value, onChange }: { label: string; value: boolean; onCh
     <label className="flex items-start gap-2 text-sm text-kruger-dark">
       <input type="checkbox" className="mt-0.5 h-4 w-4 accent-kruger-orange" checked={value} onChange={(e) => onChange(e.target.checked)} />
       {label}
-    </label>
-  );
-}
-
-function FilePick({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <label className="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-kruger-gray/50 bg-white p-3 text-sm text-kruger-dark hover:border-kruger-orange">
-      <FileUp className="h-5 w-5 shrink-0 text-kruger-orange" />
-      <span className="min-w-0 break-all">{value || label}</span>
-      {value && <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-semaforo-verde" />}
-      <input type="file" className="sr-only" aria-label={label} onChange={(e) => onChange(e.target.files?.[0]?.name ?? "")} />
     </label>
   );
 }
