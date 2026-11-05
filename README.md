@@ -20,7 +20,12 @@ npm run dev
 4. **Planificación (guía PMP)**: Línea Base del Alcance (enunciado + EDT + Diccionario) → Cronograma
    (estimación única o PERT, dependencias, ruta crítica) → Registro de Riesgos (EMV y dueño obligatorio) →
    Línea Base de Costos (estimaciones + contingencia + reserva de gestión).
-5. **Compuertas de fase**: con todos los insumos aprobados, el asistente habilita el avance a la siguiente fase.
+5. **Ejecución**: Registro de Lecciones Aprendidas (vivo), Asignación de Recursos (equipo + matriz RACI) e
+   Informe de Desempeño mensual (PV/EV sugeridos desde las líneas base, CPI, SPI, EAC, VAC, semáforo y
+   distribución Push/Pull). Tablero de Ejecución (`/ejecucion`): avance de paquetes con verificación de
+   calidad, bloqueo de tareas si falta el informe del mes anterior y tablero de impedimentos con escala de
+   intervención de 4 niveles. Progreso = (% paquetes en ejecución + % entregables completados) / 2.
+6. **Compuertas de fase**: con todos los insumos aprobados, el asistente habilita el avance a la siguiente fase.
 
 Cada cuestionario puede **omitirse solo si se adjunta el documento** correspondiente.
 
@@ -28,7 +33,7 @@ Cada cuestionario puede **omitirse solo si se adjunta el documento** correspondi
 
 - `lib/types.ts` — modelo de datos.
 - `lib/approach.ts` — algoritmo de detección de enfoque.
-- `lib/acta.ts`, `lib/stakeholders.ts`, `lib/planning.ts` — validaciones y reglas de cada cuestionario.
+- `lib/acta.ts`, `lib/stakeholders.ts`, `lib/planning.ts`, `lib/execution.ts` — validaciones y reglas de cada cuestionario.
 - `lib/assistant.ts` — motor del asistente: mensaje, acción sugerida y alertas proactivas.
 - `lib/store.tsx` — estado del proyecto y recálculo de progreso (guardado provisional en el navegador).
 - `components/` — Dashboard, stepper de fases, tarjeta del Asistente y pantallas de cada flujo.

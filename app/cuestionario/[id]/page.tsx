@@ -11,6 +11,9 @@ const OWN_PAGE = [
   "linea-base-cronograma",
   "registro-riesgos",
   "linea-base-costos",
+  "lecciones-aprendidas",
+  "asignacion-recursos",
+  "informe-desempeno",
 ];
 
 export function generateStaticParams() {

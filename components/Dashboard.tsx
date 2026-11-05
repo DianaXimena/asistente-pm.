@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Briefcase, Compass, FileText, PenLine, RotateCcw } from "lucide-react";
+import clsx from "clsx";
+import { AlertTriangle, ArrowRight, Briefcase, Compass, FileText, KanbanSquare, PenLine, RotateCcw } from "lucide-react";
 import { APPROACH_LABEL, getAlerts, getAssistantMessage, getOverallProgress } from "@/lib/assistant";
 import { useProject } from "@/lib/store";
 import type { PhaseId, Project } from "@/lib/types";
 import { AssistantCard } from "./AssistantCard";
+import { Radiator } from "./execution/ExecutionBoard";
 import { PhaseChecklist } from "./PhaseChecklist";
 import { PhaseStepper } from "./PhaseStepper";
 import { ProgressBar } from "./ProgressBar";
@@ -98,11 +100,19 @@ function DashboardView({ project }: { project: Project }) {
             <div
               key={a.id}
               data-testid="alert-card"
-              className="flex flex-col gap-3 rounded-2xl border border-semaforo-ambar/40 bg-white p-5 shadow-card sm:flex-row sm:items-center sm:justify-between"
+              className={clsx(
+                "flex flex-col gap-3 rounded-2xl border bg-white p-5 shadow-card sm:flex-row sm:items-center sm:justify-between",
+                a.severity === "rojo" ? "border-semaforo-rojo/40" : "border-semaforo-ambar/40",
+              )}
             >
               <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-semaforo-ambar/15">
-                  <AlertTriangle className="h-5 w-5 text-semaforo-ambar" />
+                <span
+                  className={clsx(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                    a.severity === "rojo" ? "bg-semaforo-rojo/10" : "bg-semaforo-ambar/15",
+                  )}
+                >
+                  <AlertTriangle className={clsx("h-5 w-5", a.severity === "rojo" ? "text-semaforo-rojo" : "text-semaforo-ambar")} />
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-kruger-dark">{a.title}</p>
@@ -118,10 +128,30 @@ function DashboardView({ project }: { project: Project }) {
                   <PenLine className="h-4 w-4" /> Registrar firma recibida
                 </button>
               )}
+              {a.href && (
+                <Link
+                  href={a.href}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-kruger-gray/40 px-4 py-2 text-sm font-medium text-kruger-dark transition hover:border-kruger-orange hover:text-kruger-orange"
+                >
+                  {a.linkLabel} <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
             </div>
           ))}
 
           <AssistantCard data={assistant} onAdvance={advancePhase} />
+
+          {["ejecucion", "control", "cierre"].includes(project.current_phase) && (
+            <section className="rounded-2xl border border-kruger-gray/25 bg-white p-6 shadow-card">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-base font-semibold text-kruger-dark">Radiador de información</h2>
+                <Link href="/ejecucion" className="inline-flex items-center gap-2 text-sm font-medium text-kruger-orange hover:underline">
+                  <KanbanSquare className="h-4 w-4" /> Abrir Tablero de Ejecución
+                </Link>
+              </div>
+              <Radiator project={project} compact />
+            </section>
+          )}
 
           <PhaseChecklist project={project} phase={selectedPhase} isCurrent={selectedPhase.id === project.current_phase} />
         </div>

@@ -1,4 +1,5 @@
 import { QUESTIONNAIRES } from "./questionnaires";
+import { RED_MESSAGE, evm, isOverdue, isRecurring, latestReport, requiredReportPeriod } from "./execution";
 import { engagementLabel, needsPriorityEngagement } from "./stakeholders";
 import type { ApproachType, InputStatus, MandatoryInput, Phase, PhaseStatus, Project, Semaforo } from "./types";
 
@@ -63,6 +64,9 @@ export interface AssistantAlert {
   title: string;
   detail: string;
   action?: "sign-acta";
+  href?: string;
+  linkLabel?: string;
+  severity?: "ambar" | "rojo";
 }
 
 export interface AssistantMessage {
@@ -101,7 +105,7 @@ export function getAssistantMessage(project: Project): AssistantMessage {
     const q = QUESTIONNAIRES[withQ.questionnaire];
     return {
       ...common,
-      message: `${base} Haz clic aquí para llenar el cuestionario del ${q.label}`,
+      message: `${base} Haz clic aquí para llenar el cuestionario ${q.prep ?? "del"} ${q.label}`,
       pendingInput: withQ,
       cta: { kind: "link", label: "Llenar cuestionario", href: q.href, hint: q.hint },
     };
@@ -156,6 +160,42 @@ export function getAlerts(project: Project): AssistantAlert[] {
       detail: `Alto poder con brecha negativa (Actual: ${engagementLabel(s.current_level)} → Deseado: ${engagementLabel(
         s.desired_level,
       )}).${s.action_plan ? ` Plan: ${s.action_plan}` : ""}`,
+    });
+  }
+  const period = requiredReportPeriod(project);
+  if (period) {
+    alerts.push({
+      id: "informe-mensual",
+      title: "Cierre de mes: Genera el Informe de Desempeño",
+      detail: `Falta el informe de ${period}. Las tareas quedan bloqueadas hasta cargar EV, PV y AC.`,
+      href: "/cuestionario/informe-desempeno",
+      linkLabel: "Generar informe",
+      severity: "rojo",
+    });
+  }
+  const last = latestReport(project);
+  const health = last ? evm(last) : null;
+  if (health?.color === "Rojo") {
+    alerts.push({ id: "evm-rojo", title: `Alerta Crítica: CPI ${health.cpi} · SPI ${health.spi}`, detail: RED_MESSAGE, severity: "rojo" });
+  } else if (health?.color === "Ámbar") {
+    alerts.push({ id: "evm-ambar", title: `Desviación moderada: CPI ${health.cpi} · SPI ${health.spi}`, detail: health.message });
+  }
+  for (const i of project.impediments.filter(isRecurring)) {
+    alerts.push({
+      id: `rec-${i.id}`,
+      title: `Impedimento recurrente: ${i.description}`,
+      detail: "Registrar un impedimento no es resolverlo: reevalúa el proceso de fondo o sube de nivel en la escala de intervención.",
+      href: "/ejecucion",
+      linkLabel: "Ver tablero",
+    });
+  }
+  for (const i of project.impediments.filter((x) => isOverdue(x) && !isRecurring(x))) {
+    alerts.push({
+      id: `due-${i.id}`,
+      title: `Impedimento vencido: ${i.description}`,
+      detail: `Dueño: ${i.owner}. Fecha límite superada.`,
+      href: "/ejecucion",
+      linkLabel: "Ver tablero",
     });
   }
   return alerts;

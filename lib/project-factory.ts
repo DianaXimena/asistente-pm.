@@ -41,9 +41,9 @@ export function initialPhases(): Phase[] {
       status: "No Iniciada",
       progress_percentage: 0,
       mandatory_inputs: [
-        { artifact_name: "Registro de Lecciones Aprendidas (Abierto)", status: "No Iniciado" },
-        { artifact_name: "Asignación de Recursos", status: "No Iniciado" },
-        { artifact_name: "Informes de Desempeño del Trabajo", status: "No Iniciado" },
+        { artifact_name: "Registro de Lecciones Aprendidas (Abierto)", status: "No Iniciado", questionnaire: "lecciones-aprendidas" },
+        { artifact_name: "Asignación de Recursos", status: "No Iniciado", questionnaire: "asignacion-recursos" },
+        { artifact_name: "Informes de Desempeño del Trabajo", status: "No Iniciado", questionnaire: "informe-desempeno" },
       ],
     },
     {
@@ -84,5 +84,36 @@ export function createProject(clientName: string, projectName: string): Project 
     stakeholders: [],
     stakeholder_register_approved: false,
     risks: [],
+    lessons: [],
+    wp_progress: {},
+    reports: [],
+    impediments: [],
+  };
+}
+
+/**
+ * Completa proyectos guardados con versiones anteriores: agrega campos nuevos y
+ * actualiza los insumos de cada fase con la plantilla vigente, conservando su estado.
+ */
+export function normalizeProject(p: Project): Project {
+  const template = initialPhases();
+  return {
+    ...p,
+    risks: p.risks ?? [],
+    lessons: p.lessons ?? [],
+    wp_progress: p.wp_progress ?? {},
+    reports: p.reports ?? [],
+    impediments: p.impediments ?? [],
+    phases: template.map((tph) => {
+      const stored = p.phases.find((x) => x.id === tph.id);
+      if (!stored) return tph;
+      return {
+        ...stored,
+        mandatory_inputs: tph.mandatory_inputs.map((ti) => {
+          const si = stored.mandatory_inputs.find((x) => x.artifact_name === ti.artifact_name);
+          return si ? { ...ti, status: si.status, source: si.source, file_name: si.file_name } : ti;
+        }),
+      };
+    }),
   };
 }

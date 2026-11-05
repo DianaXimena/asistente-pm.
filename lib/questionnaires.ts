@@ -5,6 +5,8 @@ export interface QuestionnaireMeta {
   title: string;
   /** Nombre usado en el mensaje del asistente ("...el cuestionario del {label}"). */
   label: string;
+  /** Preposición + artículo para el mensaje ("del" por defecto). */
+  prep?: "del" | "de la";
   href: string;
   hint: string;
   /** Qué cubre el cuestionario (pantalla de inicio). */
@@ -60,6 +62,31 @@ export const QUESTIONNAIRES: Record<QuestionnaireId, QuestionnaireMeta> = {
     href: "/cuestionario/linea-base-costos",
     hint: "3 pasos: estimaciones, reserva de contingencia y reserva de gestión",
     description: "Estimación por paquete de trabajo, reserva de contingencia (EMV de riesgos) y reserva de gestión para obtener la línea base y el presupuesto total.",
+  },
+  "lecciones-aprendidas": {
+    id: "lecciones-aprendidas",
+    title: "Registro de Lecciones Aprendidas",
+    label: "Registro de Lecciones Aprendidas",
+    href: "/cuestionario/lecciones-aprendidas",
+    hint: "3 preguntas por lección · registro vivo durante todo el proyecto",
+    description: "Qué pasó y si fue positivo o negativo, área de conocimiento e impacto, y la recomendación para futuros proyectos.",
+  },
+  "asignacion-recursos": {
+    id: "asignacion-recursos",
+    title: "Asignación de Recursos",
+    label: "Asignación de Recursos",
+    prep: "de la",
+    href: "/cuestionario/asignacion-recursos",
+    hint: "4 pasos: equipo, matriz RACI, formalización y revisión",
+    description: "Equipo del proyecto con su dedicación, responsable (A) y ejecutores (R) de cada paquete de trabajo, y formalización del acuerdo.",
+  },
+  "informe-desempeno": {
+    id: "informe-desempeno",
+    title: "Informe de Desempeño del Trabajo",
+    label: "Informe de Desempeño",
+    href: "/cuestionario/informe-desempeno",
+    hint: "5 pasos · menos de 5 minutos",
+    description: "Captura de PV, EV y AC, avance de entregables, diagnóstico automático (CPI, SPI, EAC, VAC) y distribución Push/Pull a los interesados.",
   },
   "solicitud-cambio": {
     id: "solicitud-cambio",

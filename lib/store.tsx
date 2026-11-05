@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { calcInicioProgress } from "./acta";
 import { canAdvance } from "./assistant";
-import { createProject } from "./project-factory";
+import { createProject, normalizeProject } from "./project-factory";
+import { executionStats, isLessonComplete } from "./execution";
 import { isRiskComplete } from "./planning";
 import { isStakeholderComplete } from "./stakeholders";
 import type {
@@ -15,8 +16,13 @@ import type {
   MandatoryInput,
   Phase,
   Project,
+  Impediment,
+  Lesson,
+  PerformanceReport,
   QuestionnaireId,
+  ResourcePlan,
   Risk,
+  WpProgress,
   ScheduleBaseline,
   ScopeBaseline,
   Stakeholder,
@@ -57,7 +63,8 @@ const approvedRatio = (ph: Phase) =>
  * - Estado del Registro de Interesados.
  * - % de Inicio: Campos Acta (70%) + Interesados (30%).
  * - % de Planificación: Σ insumos aprobados / 4 × 100.
- *   (Ejecución, Control y Cierre usarán sus fórmulas propias cuando se construyan.)
+ * - % de Ejecución: (% paquetes en ejecución + % entregables completados) / 2.
+ *   (Control y Cierre usarán sus fórmulas propias cuando se construyan.)
  */
 function recompute(input: Project): Project {
   const stkComplete = input.stakeholders.every(isStakeholderComplete);
@@ -72,14 +79,20 @@ function recompute(input: Project): Project {
   };
   p = setInputStatus(p, "registro-interesados", stkStatus);
   p = setInputStatus(p, "registro-riesgos", riskStatus);
+  // Registros vivos de Ejecución: quedan "abiertos" (aprobados) con el primer registro.
+  const lessonsOpen = p.lessons.some(isLessonComplete);
+  p = setInputStatus(p, "lecciones-aprendidas", registerStatus(p, "lecciones-aprendidas", lessonsOpen ? 1 : 0, true, lessonsOpen));
+  p = setInputStatus(p, "informe-desempeno", registerStatus(p, "informe-desempeno", p.reports.length, true, true));
   const inicio = calcInicioProgress(p);
+  const ejecucion = executionStats(p).progress;
 
   return {
     ...p,
     phases: p.phases.map((ph) => {
       if (ph.status === "Completada") return { ...ph, progress_percentage: 100 };
       if (ph.status !== "En Progreso") return ph;
-      const progress = ph.id === "inicio" ? inicio : Math.round(approvedRatio(ph) * 100);
+      const progress =
+        ph.id === "inicio" ? inicio : ph.id === "ejecucion" ? ejecucion : Math.round(approvedRatio(ph) * 100);
       return { ...ph, progress_percentage: progress };
     }),
   };
@@ -106,6 +119,14 @@ interface ProjectStore {
   saveRisk: (r: Risk) => void;
   removeRisk: (id: string) => void;
   approveRiskRegister: () => void;
+  saveLesson: (l: Lesson) => void;
+  removeLesson: (id: string) => void;
+  saveResources: (r: ResourcePlan) => void;
+  setWpProgress: (id: string, progress: WpProgress) => void;
+  publishReport: (r: PerformanceReport) => void;
+  saveImpediment: (i: Impediment) => void;
+  removeImpediment: (id: string) => void;
+  setEscalationThreshold: (t: { amount: string; days: string }) => void;
   advancePhase: () => void;
   reset: () => void;
 }
@@ -119,7 +140,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setProject(JSON.parse(raw) as Project);
+      if (raw) setProject(recompute(normalizeProject(JSON.parse(raw) as Project)));
     } catch {
       /* almacenamiento no disponible */
     }
@@ -224,6 +245,47 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   );
   const approveRiskRegister = useCallback(() => mutate((p) => ({ ...p, risk_register_approved: true })), [mutate]);
 
+  const upsert = <T,>(list: T[], item: T, key: (x: T) => string) =>
+    list.some((x) => key(x) === key(item)) ? list.map((x) => (key(x) === key(item) ? item : x)) : [...list, item];
+
+  const saveLesson = useCallback(
+    (l: Lesson) =>
+      mutate((p) => ({
+        ...patchInput(p, "lecciones-aprendidas", { source: "cuestionario", file_name: undefined }),
+        lessons: upsert(p.lessons, l, (x) => x.id),
+      })),
+    [mutate],
+  );
+  const removeLesson = useCallback((id: string) => mutate((p) => ({ ...p, lessons: p.lessons.filter((x) => x.id !== id) })), [mutate]);
+  const saveResources = useCallback(
+    (resources: ResourcePlan) => mutate((p) => patchInput({ ...p, resources }, "asignacion-recursos", asQuestionnaire)),
+    [mutate],
+  );
+  const setWpProgress = useCallback(
+    (id: string, progress: WpProgress) => mutate((p) => ({ ...p, wp_progress: { ...p.wp_progress, [id]: progress } })),
+    [mutate],
+  );
+  const publishReport = useCallback(
+    (r: PerformanceReport) =>
+      mutate((p) => ({
+        ...patchInput(p, "informe-desempeno", { source: "cuestionario", file_name: undefined }),
+        reports: upsert(p.reports, r, (x) => x.id),
+      })),
+    [mutate],
+  );
+  const saveImpediment = useCallback(
+    (i: Impediment) => mutate((p) => ({ ...p, impediments: upsert(p.impediments, i, (x) => x.id) })),
+    [mutate],
+  );
+  const removeImpediment = useCallback(
+    (id: string) => mutate((p) => ({ ...p, impediments: p.impediments.filter((x) => x.id !== id) })),
+    [mutate],
+  );
+  const setEscalationThreshold = useCallback(
+    (t: { amount: string; days: string }) => mutate((p) => ({ ...p, escalation_threshold: t })),
+    [mutate],
+  );
+
   const advancePhase = useCallback(
     () =>
       mutate((p) => {
@@ -233,6 +295,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         if (!next) return p;
         return {
           ...p,
+          execution_started_at: next.id === "ejecucion" ? new Date().toISOString() : p.execution_started_at,
           current_phase: next.id,
           phases: p.phases.map((ph, i) =>
             i === idx ? { ...ph, status: "Completada" } : i === idx + 1 ? { ...ph, status: "En Progreso" } : ph,
@@ -269,6 +332,14 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       saveRisk,
       removeRisk,
       approveRiskRegister,
+      saveLesson,
+      removeLesson,
+      saveResources,
+      setWpProgress,
+      publishReport,
+      saveImpediment,
+      removeImpediment,
+      setEscalationThreshold,
       advancePhase,
       reset,
     }),
@@ -289,6 +360,14 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       saveRisk,
       removeRisk,
       approveRiskRegister,
+      saveLesson,
+      removeLesson,
+      saveResources,
+      setWpProgress,
+      publishReport,
+      saveImpediment,
+      removeImpediment,
+      setEscalationThreshold,
       advancePhase,
       reset,
     ],
